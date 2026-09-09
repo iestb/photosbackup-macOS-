@@ -2,14 +2,21 @@ import SwiftUI
 
 @main
 struct PhotosBackupApp: App {
+#if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+#elseif os(macOS)
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
+    @StateObject private var loginItems = LoginItemManager()
+#endif
     @StateObject private var log: ProbeLog
     @StateObject private var connector: AccountConnector
     @StateObject private var account: PhotosAccount
     @StateObject private var queue: UploadQueue
     @StateObject private var preferences: BackupPreferences
     @StateObject private var albums: PhotoAlbumStore
+#if os(iOS)
     @Environment(\.scenePhase) private var scenePhase
+#endif
     private let network: NetworkPolicyMonitor
     private let automaticBackup: AutomaticBackupCoordinator
 
@@ -31,9 +38,11 @@ struct PhotosBackupApp: App {
             albums: albums,
             network: network
         )
+#if os(iOS)
         BackgroundFileUploadTransport.shared.setEventsDrainer { [weak automaticBackup] in
             await automaticBackup?.handleBackgroundURLSessionEvents()
         }
+#endif
         // A successful exchange is what connects the account; the connector owns
         // the token, the stack owns everything downstream of it.
         sharedConnector.onExchange = { [weak stack] result in await stack?.connect(result) }
@@ -50,17 +59,36 @@ struct PhotosBackupApp: App {
         automaticBackup.applyNetworkPolicy()
     }
 
+    /// The main window's content, shared between the iOS scene and the macOS
+    /// `WindowGroup`. Only the scene composition around it (and the scenePhase
+    /// handling, which means something different on each platform) differs.
+    private func mainContent() -> some View {
+        ContentView()
+            .environmentObject(log)
+            .environmentObject(connector)
+            .environmentObject(account)
+            .environmentObject(queue)
+            .environmentObject(preferences)
+            .environmentObject(albums)
+            .environmentObject(automaticBackup)
+#if os(macOS)
+            .environmentObject(loginItems)
+#endif
+            .task { await automaticBackup.start() }
+            .onChange(of: preferences.connection) { _ in automaticBackup.connectionPreferenceDidChange() }
+            .onChange(of: preferences.storageSaver) { value in queue.options.storageSaver = value }
+            .onChange(of: preferences.useQuota) { value in queue.options.useQuota = value }
+            .onChange(of: preferences.concurrentUploads) { value in queue.setMaxConcurrent(value) }
+            .onChange(of: preferences.automaticBackup) { _ in automaticBackup.backupConfigurationDidChange() }
+            .onChange(of: preferences.selectedAlbumIDs) { _ in automaticBackup.backupConfigurationDidChange() }
+            .onChange(of: preferences.completedOnboarding) { _ in automaticBackup.backupConfigurationDidChange() }
+            .onChange(of: account.status) { _ in automaticBackup.accountDidChange() }
+    }
+
     var body: some Scene {
+#if os(iOS)
         WindowGroup {
-            ContentView()
-                .environmentObject(log)
-                .environmentObject(connector)
-                .environmentObject(account)
-                .environmentObject(queue)
-                .environmentObject(preferences)
-                .environmentObject(albums)
-                .environmentObject(automaticBackup)
-                .task { await automaticBackup.start() }
+            mainContent()
                 .onChange(of: scenePhase) { phase in
                     switch phase {
                     case .active:
@@ -71,14 +99,38 @@ struct PhotosBackupApp: App {
                         break
                     }
                 }
-                .onChange(of: preferences.connection) { _ in automaticBackup.connectionPreferenceDidChange() }
-                .onChange(of: preferences.storageSaver) { value in queue.options.storageSaver = value }
-                .onChange(of: preferences.useQuota) { value in queue.options.useQuota = value }
-                .onChange(of: preferences.concurrentUploads) { value in queue.setMaxConcurrent(value) }
-                .onChange(of: preferences.automaticBackup) { _ in automaticBackup.backupConfigurationDidChange() }
-                .onChange(of: preferences.selectedAlbumIDs) { _ in automaticBackup.backupConfigurationDidChange() }
-                .onChange(of: preferences.completedOnboarding) { _ in automaticBackup.backupConfigurationDidChange() }
-                .onChange(of: account.status) { _ in automaticBackup.accountDidChange() }
         }
+#elseif os(macOS)
+        // No scenePhase-driven foreground/background switching here: the app
+        // runs continuously as a login-item agent (see MacBackgroundBackupAgent
+        // and AutomaticBackupCoordinator's macOS periodic-timer path), so
+        // there is no OS-imposed suspended state to react to — closing the
+        // window does not stop backups.
+        WindowGroup("Photos Backup", id: "main") {
+            mainContent()
+        }
+        .defaultSize(width: 900, height: 680)
+
+        MenuBarExtra {
+            MenuBarContentView()
+                .environmentObject(account)
+                .environmentObject(queue)
+                .environmentObject(automaticBackup)
+                .environmentObject(preferences)
+                .environmentObject(loginItems)
+        } label: {
+            Image(systemName: menuBarSymbol)
+        }
+        .menuBarExtraStyle(.window)
+#endif
     }
+
+#if os(macOS)
+    private var menuBarSymbol: String {
+        if !account.status.isUsable { return "photo.stack" }
+        if !queue.isIdle { return "arrow.up.circle" }
+        if queue.failedCount > 0 { return "exclamationmark.circle" }
+        return "checkmark.circle"
+    }
+#endif
 }

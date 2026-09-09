@@ -145,10 +145,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try encoder.encode(snapshot).write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
+        applyDataProtectionIfAvailable(atPath: url.path)
     }
 
     func loadCompletedSourceKeys(for accountIdentifier: String) throws -> [String] {
@@ -209,10 +206,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         defer { try? handle.close() }
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(payload.utf8))
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: ledgerURL.path
-        )
+        applyDataProtectionIfAvailable(atPath: ledgerURL.path)
     }
 
     private func rewriteLedger(ownKeys: [String], account: String, otherLines: [String]) throws {
@@ -222,10 +216,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         let lines = otherLines + own
         let output = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
         try output.write(to: ledgerURL, atomically: true, encoding: .utf8)
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: ledgerURL.path
-        )
+        applyDataProtectionIfAvailable(atPath: ledgerURL.path)
     }
 
     func removeCompletedSourceKeys(_ keys: Set<String>, for accountIdentifier: String) throws {
@@ -262,10 +253,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let output = kept.isEmpty ? "" : kept.joined(separator: "\n") + "\n"
         try output.write(to: ledgerURL, atomically: true, encoding: .utf8)
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: ledgerURL.path
-        )
+        applyDataProtectionIfAvailable(atPath: ledgerURL.path)
     }
 }
 

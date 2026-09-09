@@ -1,6 +1,5 @@
 import Photos
 import SwiftUI
-import UIKit
 
 struct OnboardingView: View {
     @EnvironmentObject private var account: PhotosAccount
@@ -22,6 +21,7 @@ struct OnboardingView: View {
             BackupTheme.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
+#if os(iOS)
                 TabView(selection: $step) {
                     welcome.tag(0)
                     connectAccount.tag(1)
@@ -33,9 +33,17 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.25), value: step)
+#else
+                // `.page` tab style (swipeable paging) is iOS/tvOS only.
+                // Onboarding here is entirely driven by the Back/Continue
+                // buttons already on each page, so a plain switch over `step`
+                // with a crossfade is a faithful macOS equivalent.
+                currentPage
+                    .animation(.easeInOut(duration: 0.25), value: step)
+#endif
             }
         }
-        .fullScreenCover(isPresented: $showingConnect) {
+        .fullScreenCoverCompat(isPresented: $showingConnect) {
             AccountConnectView(
                 onCaptured: { token in
                     showingConnect = false
@@ -59,6 +67,21 @@ struct OnboardingView: View {
             advanceAfterVerifiedConnection()
         }
     }
+
+#if os(macOS)
+    @ViewBuilder
+    private var currentPage: some View {
+        switch step {
+        case 0: welcome
+        case 1: connectAccount
+        case 2: connectionCheck
+        case 3: permission
+        case 4: chooseFolders
+        case 5: connectionPreference
+        default: complete
+        }
+    }
+#endif
 
     private var topBar: some View {
         HStack {
@@ -362,7 +385,7 @@ struct OnboardingView: View {
     private func finish() { preferences.completedOnboarding = true }
 
     private func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        guard let url = PlatformPrivacySettings.url else { return }
         openURL(url)
     }
 

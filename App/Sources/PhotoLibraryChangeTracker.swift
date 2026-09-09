@@ -40,7 +40,7 @@ final class PhotoLibraryChangeTracker {
     func scan(albums: PhotoAlbumStore, selectedAlbumIDs: Set<String>, accountIdentifier: String?) -> Scan {
         let context = ([accountIdentifier?.lowercased() ?? ""] + selectedAlbumIDs.sorted())
             .joined(separator: "\u{1F}")
-        guard #available(iOS 16, *) else {
+        guard #available(iOS 16, macOS 13, *) else {
             return Scan(sources: albums.sourcesSynchronously(for: selectedAlbumIDs))
         }
 
@@ -92,10 +92,7 @@ final class PhotoLibraryChangeTracker {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
             try JSONEncoder().encode(state).write(to: url, options: .atomic)
-            try? FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                ofItemAtPath: url.path
-            )
+            applyDataProtectionIfAvailable(atPath: url.path)
         } catch {
             // Keeping the prior token causes harmless re-enqueue attempts; the
             // queue's durable asset-key ledger removes duplicates.
@@ -108,12 +105,12 @@ final class PhotoLibraryChangeTracker {
         try? JSONDecoder().decode(StoredState.self, from: Data(contentsOf: url))
     }
 
-    @available(iOS 16, *)
+    @available(iOS 16, macOS 13, *)
     private func archive(_ token: PHPersistentChangeToken) -> Data? {
         try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
     }
 
-    @available(iOS 16, *)
+    @available(iOS 16, macOS 13, *)
     private func unarchive(_ data: Data) -> PHPersistentChangeToken? {
         try? NSKeyedUnarchiver.unarchivedObject(ofClass: PHPersistentChangeToken.self, from: data)
     }

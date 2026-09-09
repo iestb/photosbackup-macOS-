@@ -1,9 +1,18 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 enum BackupTheme {
+#if os(iOS)
     static let blue = Color(uiColor: .systemBlue)
     static let background = Color(uiColor: .systemGroupedBackground)
     static let secondaryBackground = Color(uiColor: .secondarySystemGroupedBackground)
+#else
+    static let blue = Color(nsColor: .controlAccentColor)
+    static let background = Color(nsColor: .windowBackgroundColor)
+    static let secondaryBackground = Color(nsColor: .controlBackgroundColor)
+#endif
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -74,195 +83,6 @@ struct AppMark: View {
         .frame(width: size, height: size)
         .shadow(color: BackupTheme.blue.opacity(0.22), radius: 16, y: 8)
         .accessibilityHidden(true)
-    }
-}
-
-struct SafariTutorialCard: View {
-    enum Scene {
-        case signIn
-        case enableExtension
-        case connect
-    }
-
-    let scene: Scene
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "textformat.size")
-                    .font(.caption.weight(.semibold))
-                HStack(spacing: 5) {
-                    Image(systemName: "lock.fill").font(.system(size: 8))
-                    Text(scene == .enableExtension ? "Safari Extensions" : "accounts.google.com")
-                        .font(.caption2)
-                        .lineLimit(1)
-                }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                Image(systemName: "arrow.clockwise").font(.caption)
-            }
-            .padding(10)
-
-            Divider()
-
-            Group {
-                switch scene {
-                case .signIn: signInScene
-                case .enableExtension: extensionScene
-                case .connect: connectScene
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-            HStack {
-                Image(systemName: "chevron.backward")
-                Spacer()
-                Image(systemName: "chevron.forward").foregroundStyle(.tertiary)
-                Spacer()
-                Image(systemName: "square.and.arrow.up")
-                Spacer()
-                Image(systemName: "book")
-                Spacer()
-                Image(systemName: "square.on.square")
-            }
-            .font(.body)
-            .foregroundStyle(BackupTheme.blue)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-        }
-        .frame(minHeight: 300)
-        .background(Color(uiColor: .systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.black.opacity(0.08)))
-        .shadow(color: .black.opacity(0.09), radius: 18, y: 8)
-        .padding(.horizontal, 24)
-    }
-
-    private var signInScene: some View {
-        VStack(spacing: 16) {
-            Text("G").font(.system(size: 34, weight: .medium)).foregroundStyle(BackupTheme.blue)
-            Text("Sign in").font(.title3.weight(.semibold))
-            Text("Use your Google Account").font(.subheadline).foregroundStyle(.secondary)
-            RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.35))
-                .frame(height: 44)
-                .overlay(Text("Email or phone").font(.subheadline).foregroundStyle(.secondary), alignment: .leading)
-                .padding(.horizontal, 30)
-            Text("Next")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                .padding(.horizontal, 24).padding(.vertical, 9)
-                .background(BackupTheme.blue, in: RoundedRectangle(cornerRadius: 7))
-        }
-        .padding(.vertical, 20)
-    }
-
-    private var extensionScene: some View {
-        VStack(spacing: 10) {
-            Text("Extensions").font(.headline)
-            Text("Allow extensions to customize Safari.").font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                FeatureIcon(symbol: "photo.stack.fill", size: 38)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Photos Backup Connect")
-                        .font(.caption.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Website access allowed")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                .layoutPriority(1)
-                Spacer()
-                Toggle("", isOn: .constant(true)).labelsHidden()
-            }
-            .padding(14)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 20)
-            Text("Turn on the extension, then return to Safari.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 28)
-    }
-
-    private var connectScene: some View {
-        VStack(spacing: 14) {
-            HStack {
-                FeatureIcon(symbol: "photo.stack.fill", size: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Photos Backup").font(.subheadline.weight(.semibold))
-                    Text("Safari Extension").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-            }
-            Text("Ready to connect")
-                .font(.title3.weight(.semibold))
-            Text("We’ll securely send your sign-in to the Photos Backup app.")
-                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            Label("Connect account", systemImage: "link")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(.white)
-                .frame(maxWidth: .infinity).padding(.vertical, 11)
-                .background(BackupTheme.blue, in: RoundedRectangle(cornerRadius: 10))
-        }
-        .padding(20)
-    }
-}
-
-struct SafariConnectionGuide: View {
-    private let steps: [(String, String, String)] = [
-        ("1", "Sign in and tap I agree", "Complete Google’s sign-in page."),
-        ("2", "Open Safari’s extension menu", "Tap the puzzle-piece or page menu icon."),
-        ("3", "Choose Photos Backup Connect", "Open our extension from the list."),
-        ("4", "Tap Connect to App", "Wait for the green confirmation, then return.")
-    ]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "textformat.size").font(.caption.weight(.semibold))
-                HStack(spacing: 5) {
-                    Image(systemName: "lock.fill").font(.system(size: 8))
-                    Text("accounts.google.com").font(.caption2)
-                }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                Image(systemName: "puzzlepiece.extension.fill")
-                    .font(.caption).foregroundStyle(BackupTheme.blue)
-            }
-            .padding(10)
-            Divider()
-            VStack(spacing: 0) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .top, spacing: 12) {
-                        Text(item.0)
-                            .font(.caption.bold()).foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .background(BackupTheme.blue, in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.1).font(.subheadline.weight(.semibold))
-                            Text(item.2).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if index == steps.count - 1 {
-                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        }
-                    }
-                    .padding(.vertical, 9)
-                    if index < steps.count - 1 { Divider().padding(.leading, 38) }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 7)
-        }
-        .frame(minHeight: 330)
-        .background(Color(uiColor: .systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.black.opacity(0.08)))
-        .shadow(color: .black.opacity(0.09), radius: 18, y: 8)
     }
 }
 

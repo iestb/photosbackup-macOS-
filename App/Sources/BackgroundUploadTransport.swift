@@ -1,5 +1,12 @@
+#if os(iOS)
 import Foundation
 import UIKit
+
+/// The default file-upload transport for this platform. See
+/// `MacUploadTransport.swift` for the macOS counterpart.
+enum AppFileUploadTransport {
+    static let shared: any FileUploadTransport = BackgroundFileUploadTransport.shared
+}
 
 /// Delegate-driven file transport owned for the lifetime of the process. The
 /// URL session itself is owned by iOS, so PUTs keep running while the app is
@@ -418,3 +425,4 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         BackgroundFileUploadTransport.shared.handleEvents(completionHandler: completionHandler)
     }
 }
+#endif

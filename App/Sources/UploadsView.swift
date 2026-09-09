@@ -28,7 +28,7 @@ struct UploadsView: View {
                     activitySection
                 }
             }
-            .listStyle(.insetGrouped)
+            .insetGroupedListStyleCompat()
             .navigationTitle("Activity")
             .sheet(isPresented: $showPicker) {
                 PhotoPicker { sources in enqueue(sources) }.ignoresSafeArea()
@@ -45,7 +45,7 @@ struct UploadsView: View {
                 Text(stopBackupMessage)
             }
         }
-        .navigationViewStyle(.stack)
+        .stackNavigationViewStyleCompat()
     }
 
     private func enqueue(_ sources: [MediaSource]) {
@@ -239,7 +239,7 @@ struct UploadsView: View {
                 }
                 Section {
                     Button {
-                        UIPasteboard.general.string = "\(failure.name)\n\(failure.reason)"
+                        Pasteboard.copy("\(failure.name)\n\(failure.reason)")
                     } label: {
                         Label("Copy Details", systemImage: "doc.on.doc")
                     }
@@ -251,16 +251,16 @@ struct UploadsView: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .insetGroupedListStyleCompat()
             .navigationTitle("Upload Failed")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitleCompat()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { inspectedFailure = nil }
                 }
             }
         }
-        .navigationViewStyle(.stack)
+        .stackNavigationViewStyleCompat()
     }
 
     private func symbol(_ state: UploadItem.State) -> String {

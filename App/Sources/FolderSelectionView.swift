@@ -1,6 +1,5 @@
 import Photos
 import SwiftUI
-import UIKit
 
 struct FolderSelectionView: View {
     @EnvironmentObject private var albums: PhotoAlbumStore
@@ -38,7 +37,7 @@ struct FolderSelectionView: View {
             .navigationTitle("Albums")
             .searchable(text: $searchText, prompt: "Search albums")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .trailingCompat) {
                     Text("\(preferences.selectedAlbumIDs.count) selected")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -55,7 +54,7 @@ struct FolderSelectionView: View {
             // move a "N of M backed up" count.
             .onChange(of: queue.completedSourceKeys) { _ in refreshBackedUpCounts() }
         }
-        .navigationViewStyle(.stack)
+        .stackNavigationViewStyleCompat()
     }
 
     private var albumList: some View {
@@ -99,7 +98,7 @@ struct FolderSelectionView: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Change in Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                if let url = PlatformPrivacySettings.url { openURL(url) }
             }
             .font(.footnote.weight(.semibold))
         }
@@ -124,7 +123,7 @@ struct FolderSelectionView: View {
             Spacer()
             EmptyState(symbol: "photo.badge.exclamationmark", title: "Photo access is off", message: "Allow access in Settings to choose albums and back up photos.")
             Button("Open Settings") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                if let url = PlatformPrivacySettings.url { openURL(url) }
             }
             .buttonStyle(PrimaryButtonStyle()).padding(.horizontal, 24)
             Spacer()

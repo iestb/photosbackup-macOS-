@@ -1,11 +1,18 @@
+#if os(iOS)
 import BackgroundTasks
+import UIKit
+#endif
 import Foundation
 import OSLog
-import UIKit
 
 /// Owns opportunistic automatic-backup runs in both foreground and system
 /// background execution windows. iOS decides when a processing request runs;
 /// every invocation submits its successor so the work remains recurring.
+///
+/// macOS has no equivalent OS-scheduled background window: the app runs
+/// continuously as a login-item menu-bar agent instead (see
+/// `MacBackgroundBackupAgent`), so automatic backup there is just a periodic
+/// timer that reuses the same background-run logic while the process is alive.
 @MainActor
 final class AutomaticBackupCoordinator: ObservableObject {
     static let taskIdentifier = "com.g8row.photosbackup.background-backup"
@@ -41,13 +48,22 @@ final class AutomaticBackupCoordinator: ObservableObject {
     private var backgroundOperation: Task<Void, Never>?
     private var foregroundOperation: Task<Void, Never>?
     private var foregroundRunID: UUID?
+#if os(macOS)
+    private var macScheduleTask: Task<Void, Never>?
+#endif
 #if DEBUG
     @Published private(set) var debugSimulationStatus = "Ready"
+#if os(iOS)
     static let lldbSimulationCommand = "e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@\"\(taskIdentifier)\"]"
     /// The run's OSLog output goes to the system log, not to this screen. On a
     /// simulator this streams it; on a device use Console.app and filter by the
     /// same subsystem.
     static let logStreamCommand = "xcrun simctl spawn booted log stream --level debug --predicate 'subsystem == \"com.g8row.photosbackup\"'"
+#else
+    /// macOS has no BGTaskScheduler simulation hook; "Simulate Background Run"
+    /// below calls `performBackgroundBackup()` directly instead.
+    static let logStreamCommand = "log stream --level debug --predicate 'subsystem == \"com.g8row.photosbackup\"'"
+#endif
 #endif
 
     init(photos: PhotosStack,
@@ -65,6 +81,7 @@ final class AutomaticBackupCoordinator: ObservableObject {
         self.network = network
         self.libraryChanges = libraryChanges ?? PhotoLibraryChangeTracker()
 
+#if os(iOS)
         registered = BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.taskIdentifier,
             using: nil
@@ -81,10 +98,15 @@ final class AutomaticBackupCoordinator: ObservableObject {
             task.expirationHandler = { window.expire() }
             Task { @MainActor [weak self] in self?.begin(task, window: window) }
         }
+#else
+        // macOS has nothing to register with; the periodic timer in
+        // updateSchedule() is always available once the coordinator exists.
+        registered = true
+#endif
     }
 
     func start() async {
-        isForeground = UIApplication.shared.applicationState == .active
+        isForeground = PlatformState.isApplicationActive
         queue.setICloudDownloadsAllowed(isForeground)
         await photos.start()
         applyNetworkPolicy()
@@ -144,6 +166,7 @@ final class AutomaticBackupCoordinator: ObservableObject {
     }
 
     func updateSchedule() {
+#if os(iOS)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
         guard registered, shouldSchedule else { return }
 
@@ -157,7 +180,33 @@ final class AutomaticBackupCoordinator: ObservableObject {
         } catch {
             Self.logger.error("Could not schedule automatic backup: \(error.localizedDescription, privacy: .public)")
         }
+#else
+        if shouldSchedule { startMacPeriodicSchedule() } else { stopMacPeriodicSchedule() }
+#endif
     }
+
+#if os(macOS)
+    /// How often the agent re-scans the library while it is allowed to run.
+    /// Matches iOS's `earliestBeginDate` window so the two builds back up at
+    /// a similar cadence.
+    private static let macScheduleInterval: UInt64 = 15 * 60 * 1_000_000_000
+
+    private func startMacPeriodicSchedule() {
+        guard macScheduleTask == nil else { return }
+        macScheduleTask = Task { @MainActor [weak self] in
+            while let self, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.macScheduleInterval)
+                guard !Task.isCancelled, self.shouldSchedule else { continue }
+                _ = await self.performBackgroundBackup()
+            }
+        }
+    }
+
+    private func stopMacPeriodicSchedule() {
+        macScheduleTask?.cancel()
+        macScheduleTask = nil
+    }
+#endif
 
     /// Why automatic backup cannot run, in the user's terms, or nil when it can.
     /// One source of truth so a refused run can say which condition stopped it
@@ -310,6 +359,7 @@ final class AutomaticBackupCoordinator: ObservableObject {
         foregroundRunID = nil
     }
 
+#if os(iOS)
     private func begin(_ task: BGProcessingTask, window: BackgroundWindow) {
         Self.logger.info("Beginning an iOS background-processing window")
         isForeground = false
@@ -339,6 +389,7 @@ final class AutomaticBackupCoordinator: ObservableObject {
         // iOS may already have expired the window while this hop was queued.
         window.adopt(expire)
     }
+#endif
 
     /// The outcome of one window, with the reason attached. `success` is what
     /// iOS is told; `summary` is what a human reads in Diagnostics and the log.
@@ -442,11 +493,14 @@ final class AutomaticBackupCoordinator: ObservableObject {
         return report
     }
 
+#if os(iOS)
     /// Called from the background URL-session delegate before iOS receives its
     /// relaunch completion handler. It restores the queue and lets completed
-    /// PUT receipts reach the small commit RPC.
+    /// PUT receipts reach the small commit RPC. macOS has no relaunch handoff
+    /// to wait for — `AppFileUploadTransport` there is a plain foreground
+    /// session — so this has no macOS counterpart.
     func handleBackgroundURLSessionEvents() async {
-        isForeground = UIApplication.shared.applicationState == .active
+        isForeground = PlatformState.isApplicationActive
         if !isForeground {
             // Filter before restoration so `activateAccount`'s internal pump
             // cannot start fresh exports, and pause network so nothing pumps
@@ -457,15 +511,16 @@ final class AutomaticBackupCoordinator: ObservableObject {
         await photos.start()
         _ = await network.waitForInitialStatus()
         applyNetworkPolicy()
-        isForeground = UIApplication.shared.applicationState == .active
+        isForeground = PlatformState.isApplicationActive
         queue.setICloudDownloadsAllowed(isForeground)
         if isForeground { queue.resumeSystemWork() }
         else { queue.resumeBackgroundTransferCompletions() }
         await queue.waitUntilBackgroundTransfersHandled()
-        isForeground = UIApplication.shared.applicationState == .active
+        isForeground = PlatformState.isApplicationActive
         if isForeground { queue.resumeSystemWork() }
         else { queue.finishBackgroundTransferCompletions() }
     }
+#endif
 
 #if DEBUG
     func simulateRun() {
@@ -483,6 +538,7 @@ final class AutomaticBackupCoordinator: ObservableObject {
 #endif
 }
 
+#if os(iOS)
 /// Bridges the gap between a `BGProcessingTask` arriving on a system queue and
 /// the coordinator taking it over on the main actor. An expiration that lands
 /// inside that gap is remembered and replayed to the real handler.
@@ -507,3 +563,4 @@ final class BackgroundWindow: @unchecked Sendable {
         if alreadyExpired { handler() }
     }
 }
+#endif

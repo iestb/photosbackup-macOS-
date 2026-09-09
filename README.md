@@ -1,13 +1,15 @@
-# Photos Backup for iOS
+# Photos Backup for iOS and macOS
 
 <p align="center">
   <img src="App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" width="160" alt="Photos Backup app icon">
 </p>
 
-An experimental, fully on-device iPhone app for backing up selected photos,
-videos, and albums to Google Photos. It is a single SwiftUI app that completes
-Google account setup in an in-app web view, so everything happens on the phone
-without a desktop companion or hosted service.
+An experimental, fully on-device app for backing up selected photos, videos,
+and albums to Google Photos, for iPhone and, as of this fork, Mac. It is a
+single SwiftUI codebase, shared between an iOS app and a macOS menu-bar
+agent, that completes Google account setup in an in-app web view — so
+everything happens on-device without a separate desktop companion or hosted
+service. See [macOS](#macos) below for what differs between the two builds.
 
 > [!WARNING]
 > This project uses Google's private, undocumented Photos endpoints and an
@@ -105,6 +107,45 @@ xcodebuild \
 
 For a signed device build, set `DEVELOPMENT_TEAM` in `project.yml`, regenerate
 the project, and let Xcode manage signing.
+
+### macOS
+
+`xcodegen generate` also produces a `PhotosBackupMac` target and scheme,
+sharing all of `App/Sources` and `GPMC/Core` with the iOS app. Select the
+`PhotosBackupMac` scheme and run:
+
+```sh
+xcodebuild \
+  -project PhotosBackup.xcodeproj \
+  -scheme PhotosBackupMac \
+  -destination 'platform=macOS' \
+  build
+```
+
+The macOS build is sandboxed (`App/Resources/PhotosBackupMac.entitlements`)
+and reads its own `App/Resources/Info-macOS.plist`. It differs from the iOS
+app in three places where iOS APIs have no macOS equivalent:
+
+- **Photo picker.** macOS has no `PHPickerViewController`, so `PhotoPicker`
+  is a native SwiftUI grid backed directly by `PHPhotoLibrary` there instead.
+- **Automatic backup scheduling.** There is no `BGTaskScheduler` on macOS.
+  The app instead runs continuously as a menu-bar accessory that can launch
+  at login (`LoginItemManager`, via `SMAppService`), and
+  `AutomaticBackupCoordinator` re-scans the library on a periodic in-process
+  timer instead of an OS-scheduled processing window.
+- **Uploads.** iOS uses a delegate-driven background `URLSession` so uploads
+  survive suspension/termination. macOS uses the existing
+  `ForegroundFileUploadTransport` on a long-lived session, since the app is
+  expected to keep running as a background agent instead.
+
+The shared asset catalog only has iOS-sized app icons; the Mac build
+currently runs with the system's default app icon until a macOS icon set
+(16/32/128/256/512pt, @1x/@2x) is added to `AppIcon.appiconset`.
+
+This macOS port has not been built or run on an actual Mac/Xcode yet — it
+was written and reviewed without one available. Treat the first build as a
+bring-up: check the console for anything the compiler or `xcodegen`
+disagrees with.
 
 ### Test background execution
 

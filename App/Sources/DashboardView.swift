@@ -43,7 +43,7 @@ struct DashboardView: View {
             .background(BackupTheme.background)
             .navigationTitle("Photos Backup")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .trailingCompat) {
                     accountToolbarItem
                 }
             }
@@ -68,7 +68,7 @@ struct DashboardView: View {
             .onChange(of: albums.albums) { _ in refreshBackedUpCounts() }
             .onChange(of: queue.completedSourceKeys) { _ in refreshBackedUpCounts() }
         }
-        .navigationViewStyle(.stack)
+        .stackNavigationViewStyleCompat()
     }
 
     private func enqueue(_ sources: [MediaSource]) {

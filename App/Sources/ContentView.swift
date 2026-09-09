@@ -21,7 +21,7 @@ struct ContentView: View {
 
     private func markBuildStep() {
         if log.steps.first(where: { $0.id == ProbeLog.build })?.state == .pending {
-            log.set(ProbeLog.build, .passed, "app + extension launched on iOS \(UIDevice.current.systemVersion)")
+            log.set(ProbeLog.build, .passed, "app launched on \(PlatformVersion.name) \(PlatformVersion.version)")
         }
     }
 }
@@ -53,8 +53,9 @@ private struct MainAppView: View {
         }
         // Full screen, like onboarding's connect step. As a sheet, an
         // accidental downward swipe discards a single-use oauth_token and the
-        // whole Google sign-in has to be repeated.
-        .fullScreenCover(isPresented: $showConnectionTutorial) {
+        // whole Google sign-in has to be repeated. (macOS has no full-screen
+        // cover; a sheet is the closest equivalent there.)
+        .fullScreenCoverCompat(isPresented: $showConnectionTutorial) {
             ConnectionTutorialView()
         }
     }

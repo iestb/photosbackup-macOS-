@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var account: PhotosAccount
@@ -7,6 +6,9 @@ struct SettingsView: View {
     @EnvironmentObject private var preferences: BackupPreferences
     @EnvironmentObject private var albums: PhotoAlbumStore
     @EnvironmentObject private var automaticBackup: AutomaticBackupCoordinator
+#if os(macOS)
+    @EnvironmentObject private var loginItems: LoginItemManager
+#endif
 
     let showTutorial: () -> Void
     @State private var confirmDisconnect = false
@@ -32,7 +34,7 @@ struct SettingsView: View {
                 Text("New backups will stop until you connect again. Photos already backed up are not affected.")
             }
         }
-        .navigationViewStyle(.stack)
+        .stackNavigationViewStyleCompat()
     }
 
     private var accountSection: some View {
@@ -131,6 +133,12 @@ struct SettingsView: View {
             }
             Toggle("Storage Saver", isOn: $preferences.storageSaver)
             Toggle("Count Against Storage Quota", isOn: $preferences.useQuota)
+#if os(macOS)
+            Toggle("Launch at Login", isOn: Binding(
+                get: { loginItems.isEnabled },
+                set: { loginItems.setEnabled($0) }
+            ))
+#endif
         } header: {
             Text("Backup")
         } footer: {
@@ -191,7 +199,7 @@ struct SettingsView: View {
         Section("About") {
             LabeledRow("App", value: "Photos Backup")
             LabeledRow("Version", value: appVersion)
-            LabeledRow("iOS", value: UIDevice.current.systemVersion)
+            LabeledRow(PlatformVersion.name, value: PlatformVersion.version)
             LabeledRow("Core technology") {
                 Link("GPMC by xob0t", destination: gpmcURL)
             }

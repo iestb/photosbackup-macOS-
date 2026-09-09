@@ -44,7 +44,7 @@ final class PhotosAccount: ObservableObject {
 
     init(store: CredentialStore = CredentialStore(),
          requestNetworkPolicy: UploadRequestNetworkPolicy = UploadRequestNetworkPolicy(),
-         fileUploadTransport: any FileUploadTransport = BackgroundFileUploadTransport.shared) {
+         fileUploadTransport: any FileUploadTransport = AppFileUploadTransport.shared) {
         self.store = store
         self.requestNetworkPolicy = requestNetworkPolicy
         self.fileUploadTransport = fileUploadTransport

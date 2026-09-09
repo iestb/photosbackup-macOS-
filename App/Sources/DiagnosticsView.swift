@@ -15,7 +15,7 @@ struct DiagnosticsView: View {
     var body: some View {
         List {
             Section("Environment") {
-                LabeledRow("iOS", value: UIDevice.current.systemVersion)
+                LabeledRow(PlatformVersion.name, value: PlatformVersion.version)
             }
 
 #if DEBUG
@@ -41,18 +41,24 @@ struct DiagnosticsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+#if os(iOS)
                 Button("Copy LLDB Launch Command") {
-                    UIPasteboard.general.string = AutomaticBackupCoordinator.lldbSimulationCommand
+                    Pasteboard.copy(AutomaticBackupCoordinator.lldbSimulationCommand)
                 }
+#endif
                 Button("Copy Log Stream Command") {
-                    UIPasteboard.general.string = AutomaticBackupCoordinator.logStreamCommand
+                    Pasteboard.copy(AutomaticBackupCoordinator.logStreamCommand)
                 }
             } header: {
                 Text("Background Debugging")
             } footer: {
+#if os(iOS)
                 Text(AutomaticBackupCoordinator.lldbSimulationCommand)
                     .font(.caption2.monospaced())
                     .textSelection(.enabled)
+#else
+                Text("\"Simulate Background Run\" calls the same backup pass macOS's periodic timer uses.")
+#endif
             }
 #endif
 
@@ -76,9 +82,9 @@ struct DiagnosticsView: View {
                         .padding(.vertical, 2)
                     }
                     Button("Copy All Failures") {
-                        UIPasteboard.general.string = queue.recentFailures
+                        Pasteboard.copy(queue.recentFailures
                             .map(\.summary)
-                            .joined(separator: "\n")
+                            .joined(separator: "\n"))
                     }
                 } header: {
                     Text("Upload Failures")
@@ -123,7 +129,7 @@ struct DiagnosticsView: View {
             Section {
                 DisclosureGroup("Advanced: Paste oauth_token", isExpanded: $showAdvanced) {
                     TextField("oauth_token value", text: $manualToken)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled().font(.footnote.monospaced()).lineLimit(4)
+                        .noAutocapitalizationCompat().autocorrectionDisabled().font(.footnote.monospaced()).lineLimit(4)
                     Button("Run Exchange") {
                         let token = manualToken.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !token.isEmpty else { return }
@@ -137,8 +143,8 @@ struct DiagnosticsView: View {
             }
         }
         .navigationTitle("Diagnostics")
-        .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $showingConnect) {
+        .inlineNavigationTitleCompat()
+        .fullScreenCoverCompat(isPresented: $showingConnect) {
             AccountConnectView(
                 onCaptured: { token in
                     showingConnect = false

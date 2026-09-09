@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: com.g8row.photosbackup
   deploymentTarget:
     iOS: "15.0"
+    macOS: "13.0"
   createIntermediateGroups: true
   minimumXcodeGenVersion: "2.40.0"
 
@@ -46,6 +47,22 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.g8row.photosbackup.tests
     dependencies:
       - target: PhotosBackup
+  PhotosBackupMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: GPMC/Core
+      - path: App/Resources/Assets.xcassets
+        buildPhase: resources
+    settings:
+      base:
+        INFOPLIST_FILE: App/Resources/Info-macOS.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.g8row.photosbackup
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: App/Resources/PhotosBackupMac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
 
 schemes:
   PhotosBackup:
@@ -56,3 +73,7 @@ schemes:
     test:
       targets:
         - PhotosBackupTests
+  PhotosBackupMac:
+    build:
+      targets:
+        PhotosBackupMac: all

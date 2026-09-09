@@ -98,10 +98,7 @@ actor MediaExporter {
     static func stage(named name: String) throws -> URL {
         let directory = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? FileManager.default.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: directory.path
-        )
+        applyDataProtectionIfAvailable(atPath: directory.path)
         try? (directory as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
         let safe = name.isEmpty ? "item" : name
         return directory.appendingPathComponent(safe)
@@ -179,10 +176,7 @@ actor MediaExporter {
 
     private func describe(_ url: URL, filename: String, modified: Date?, temporary: Bool) throws -> ExportedMedia {
         if temporary {
-            try? FileManager.default.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                ofItemAtPath: url.path
-            )
+            applyDataProtectionIfAvailable(atPath: url.path)
         }
         let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         let size = Int64(values?.fileSize ?? 0)
