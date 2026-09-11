@@ -19,13 +19,21 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationRoot {
-            Form {
+            // A `List`, not a `Form`: on macOS `Form` renders as a System
+            // Settings-style two-column grid whose label column is sized to
+            // its own intrinsic content and never reflows, so long labels
+            // and footer text spill past both window edges no matter how
+            // wide the window is. `List` uses ordinary rows that lay out
+            // within the width they're given, the same way every other
+            // screen in this app already does.
+            List {
                 accountSection
                 backupSection
                 verifySection
                 supportSection
                 aboutSection
             }
+            .insetGroupedListStyleCompat()
             .navigationTitle("Settings")
             .confirmationDialog("Disconnect Google Photos?", isPresented: $confirmDisconnect, titleVisibility: .visible) {
                 Button("Disconnect", role: .destructive) { Task { await account.disconnect() } }
@@ -139,6 +147,7 @@ struct SettingsView: View {
             Text("How many photos are checked against Google Photos at once to see if they're already backed up. Cheap, network-light work — safe to keep high.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Picker("Simultaneous New Uploads", selection: $preferences.concurrentTransfers) {
                 ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { count in
@@ -148,6 +157,7 @@ struct SettingsView: View {
             Text("How many photos that aren't already backed up are actively sending file bytes at once. Bandwidth-heavy — a high value here can saturate your connection and slow everything down.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 #else
             Picker("Simultaneous Uploads", selection: $preferences.concurrentUploads) {
                 ForEach(Array(UploadQueue.concurrencyRange), id: \.self) { count in
@@ -167,6 +177,7 @@ struct SettingsView: View {
             Text("Backup")
         } footer: {
             Text(concurrentUploadsFooter)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -201,6 +212,7 @@ struct SettingsView: View {
             Text("Re-check")
         } footer: {
             Text("Compares your selected albums against Google Photos again. Items still in the cloud finish quickly; anything deleted there is queued for upload again.")
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
