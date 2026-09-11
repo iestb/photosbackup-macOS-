@@ -47,19 +47,22 @@ struct UploadsView: View {
         }
     }
 
-    /// Rows worth a place in the list: anything still in flight or that needs
-    /// a decision. A quiet success (`.done`/`.alreadyBackedUp`) has nothing to
-    /// act on, and a first-time reconciliation of a large library can settle
-    /// tens of thousands of them — rendering (and re-diffing, on every single
-    /// one of those completions) a List that long is real, visible main-thread
-    /// cost for no benefit; the running "backed up" count elsewhere already
-    /// says how many finished. This only changes what's displayed, not what
+    /// Rows worth a place in the list: anything actually in flight or that
+    /// needs a decision. Excludes both ends of a large backlog's size — the
+    /// quiet successes (`.done`/`.alreadyBackedUp`, nothing to act on) and,
+    /// just as important, `.queued`: the not-yet-started majority of a
+    /// full-library enqueue, which has nothing to show either (no progress,
+    /// no error) until its turn comes. Rendering (and re-diffing, on every
+    /// single state change anywhere in the queue) a List sized to the whole
+    /// library instead of to `maxConcurrent`-ish rows is real, visible main-
+    /// thread cost for no benefit; the header's "X remaining" already covers
+    /// what is still to come. This only changes what's displayed, not what
     /// the queue tracks — completed counts, the ledger, and Clear Finished all
     /// still see every item.
     private var notableItems: [UploadItem] {
         queue.items.filter { item in
             switch item.state {
-            case .done, .alreadyBackedUp: return false
+            case .queued, .done, .alreadyBackedUp: return false
             default: return true
             }
         }
