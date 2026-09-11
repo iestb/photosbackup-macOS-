@@ -33,6 +33,9 @@ struct SettingsView: View {
             } message: {
                 Text("New backups will stop until you connect again. Photos already backed up are not affected.")
             }
+#if os(macOS)
+            .onAppear { loginItems.refresh() }
+#endif
         }
     }
 

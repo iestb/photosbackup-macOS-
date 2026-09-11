@@ -57,6 +57,19 @@ struct PhotosBackupApp: App {
         network.onStatusChange = { [weak automaticBackup] _ in automaticBackup?.networkDidChange() }
         network.start()
         automaticBackup.applyNetworkPolicy()
+#if os(macOS)
+        // Covers the login-item launch the window-scoped .task below cannot
+        // reach — see MacAppDelegate. start() is safe to also run again from
+        // that .task if a window does open: every step in it already guards
+        // against running twice.
+        let queueForShutdown = stack.queue
+        appDelegate.onLaunch = { [weak automaticBackup] in
+            Task { await automaticBackup?.start() }
+        }
+        appDelegate.onTerminate = { [weak queueForShutdown] in
+            MainActor.assumeIsolated { queueForShutdown?.flushPendingWrites() }
+        }
+#endif
     }
 
     /// The main window's content, shared between the iOS scene and the macOS

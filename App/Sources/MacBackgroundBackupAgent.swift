@@ -5,7 +5,27 @@ import SwiftUI
 /// Keeps the app (and automatic backup) running after the main window closes,
 /// so the menu-bar icon and the login-item agent stay meaningful — without
 /// this, SwiftUI would quit the process along with its last window.
+///
+/// Also the home for the two lifecycle hooks `PhotosBackupApp.init()` wires
+/// up, because this app is an `LSUIElement` accessory: macOS does not
+/// auto-open a `WindowGroup` window for one at launch, so `.task` on the
+/// window's content (where iOS's equivalent startup lives) may never run on
+/// a real login-item launch. `applicationDidFinishLaunching` fires every
+/// time regardless of whether any window ever opens; `applicationWillTerminate`
+/// is the only reliable quit-time hook on macOS — there is no scenePhase-style
+/// suspend signal the way there is on iOS.
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
+    var onLaunch: (() -> Void)?
+    var onTerminate: (() -> Void)?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        onLaunch?()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        onTerminate?()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
@@ -77,6 +97,7 @@ struct MenuBarContentView: View {
         } message: {
             Text(stopBackupMessage)
         }
+        .onAppear { loginItems.refresh() }
     }
 
     private var statusTab: some View {
