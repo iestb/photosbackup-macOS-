@@ -42,6 +42,13 @@ struct AccountConnectView: View {
                 }
             }
         }
+#if os(macOS)
+        // Unlike iOS's .fullScreenCover, a macOS .sheet sizes itself to its
+        // content's intrinsic size — and the wrapped WKWebView has none of
+        // its own, so without an explicit frame the sheet collapses down to
+        // just its title bar with no visible web content.
+        .frame(minWidth: 760, minHeight: 640)
+#endif
     }
 }
 
