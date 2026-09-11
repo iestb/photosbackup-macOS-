@@ -24,8 +24,16 @@ final class PhotosStack {
         self.queue.onCredentialRejected = { [weak account] error in account?.report(error) }
     }
 
+    /// How many items may be checked/exported/hashed at once. Also retunes how
+    /// often each one reports progress: those reports land on the queue's
+    /// `@Published` state, so their cost is per-item rate times this number.
+    func setMaxConcurrentChecks(_ value: Int) {
+        queue.setMaxConcurrent(value)
+        UploadPhaseRelay.reportInterval.set(UploadPhaseRelay.interval(forConcurrency: queue.maxConcurrent))
+    }
+
     /// How many uploads may have file bytes actively moving at once — see
-    /// `TransferGate`. Independent of `queue.setMaxConcurrent`, which caps
+    /// `TransferGate`. Independent of `setMaxConcurrentChecks`, which caps
     /// how many items are simultaneously being checked/exported/hashed.
     func setMaxConcurrentTransfers(_ value: Int) {
         transferGate.setLimit(value)

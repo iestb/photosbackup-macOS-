@@ -10,9 +10,9 @@ import SwiftUI
 struct MacActivityView: View {
     @EnvironmentObject private var queue: UploadQueue
 
-    private var inProgressItems: [UploadItem] {
-        queue.items.filter { $0.state.isWorking }
-    }
+    /// `queue.workingItems`, not a filter over `queue.items`: this is read on
+    /// every publish, and a publish happens on every progress tick.
+    private var inProgressItems: [UploadItem] { queue.workingItems }
 
     var body: some View {
         NavigationRoot {

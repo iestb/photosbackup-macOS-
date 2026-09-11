@@ -92,6 +92,10 @@ struct UploadQueueSnapshot: Codable, Equatable, Sendable {
 protocol UploadQueuePersisting {
     func load() throws -> UploadQueueSnapshot?
     func save(_ snapshot: UploadQueueSnapshot) throws
+    /// Block until everything already handed to `save` has reached disk.
+    /// Stores that write asynchronously must honour this: it is what the
+    /// quit-time flush relies on to not lose the last snapshot.
+    func drain()
     var storesCompletionLedgerSeparately: Bool { get }
     func loadCompletedSourceKeys(for accountIdentifier: String) throws -> [String]
     func recordCompletedSourceKey(_ key: String, for accountIdentifier: String) throws
@@ -100,6 +104,7 @@ protocol UploadQueuePersisting {
 }
 
 extension UploadQueuePersisting {
+    func drain() {}
     var storesCompletionLedgerSeparately: Bool { false }
     func loadCompletedSourceKeys(for accountIdentifier: String) throws -> [String] {
         guard let snapshot = try load(), snapshot.accountIdentifier == accountIdentifier else { return [] }
@@ -112,41 +117,137 @@ extension UploadQueuePersisting {
     func removeCompletedSourceKeys(_ keys: Set<String>, for accountIdentifier: String) throws {}
 }
 
+/// Encodes and writes queue snapshots on a serial background queue.
+///
+/// The queue asks for a snapshot up to several times a second while a backup
+/// drains, and one holding a whole library encodes to megabytes of JSON —
+/// far too much to spend on the main actor, where it stalled the UI in
+/// proportion to how fast uploads were completing. Serial, so a slower older
+/// snapshot can never land on top of a newer one.
+private final class SnapshotWriter: @unchecked Sendable {
+    private let url: URL
+    private let queue = DispatchQueue(label: "com.g8row.photosbackup.queue-snapshot", qos: .utility)
+    private let lock = NSLock()
+    private var pendingError: Error?
+
+    init(url: URL) { self.url = url }
+
+    /// A write failure surfaces from the *next* call, since this one no
+    /// longer has a synchronous result to throw. One cycle of delay before
+    /// the warning appears is not worth doing this work on the main actor.
+    func write(_ snapshot: UploadQueueSnapshot) throws {
+        if let error = takePendingError() { throw error }
+        let url = self.url
+        queue.async { [weak self] in
+            do {
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                        withIntermediateDirectories: true)
+                try JSONEncoder().encode(snapshot).write(to: url, options: .atomic)
+                applyDataProtectionIfAvailable(atPath: url.path)
+            } catch {
+                self?.store(error)
+            }
+        }
+    }
+
+    /// Wait for anything already queued. Both reading the file back and the
+    /// quit-time flush depend on the writes having landed first.
+    func drain() { queue.sync {} }
+
+    private func store(_ error: Error) {
+        lock.lock(); pendingError = error; lock.unlock()
+    }
+
+    private func takePendingError() -> Error? {
+        lock.lock(); defer { lock.unlock() }
+        let error = pendingError
+        pendingError = nil
+        return error
+    }
+}
+
+/// Appends to the completion ledger through one long-lived file handle.
+///
+/// Opening, seeking, writing and closing a file for every completed photo
+/// cost roughly six syscalls each, on the main actor, dozens of times a
+/// second while a large library reconciled. The handle already sits at the
+/// end of the file, so an append is now a single write.
+private final class LedgerWriter: @unchecked Sendable {
+    private let url: URL
+    private let lock = NSLock()
+    private var handle: FileHandle?
+
+    init(url: URL) { self.url = url }
+    deinit { try? handle?.close() }
+
+    func append(_ payload: Data) throws {
+        guard !payload.isEmpty else { return }
+        lock.lock(); defer { lock.unlock() }
+        if handle == nil {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: url.path) {
+                guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                applyDataProtectionIfAvailable(atPath: url.path)
+            }
+            let opened = try FileHandle(forWritingTo: url)
+            try opened.seekToEnd()
+            handle = opened
+        }
+        try handle?.write(contentsOf: payload)
+    }
+
+    /// Compaction and key removal both rewrite the file underneath us, so the
+    /// cached handle — and its offset — has to be dropped when they do.
+    func invalidate() {
+        lock.lock(); defer { lock.unlock() }
+        try? handle?.close()
+        handle = nil
+    }
+}
+
 /// Stores one account-scoped queue atomically in Application Support. The file
 /// remains readable after the first device unlock so an iOS background task can
 /// restore it while the phone is locked.
 struct FileUploadQueuePersistence: UploadQueuePersisting {
     private let url: URL
     private let ledgerURL: URL
+    private let snapshotWriter: SnapshotWriter
+    private let ledgerWriter: LedgerWriter
 
     init(url: URL? = nil) {
+        let queueURL: URL
+        let logURL: URL
         if let url {
-            self.url = url
-            ledgerURL = url.deletingLastPathComponent().appendingPathComponent("completed-sources-v1.log")
+            queueURL = url
+            logURL = url.deletingLastPathComponent().appendingPathComponent("completed-sources-v1.log")
         } else {
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            self.url = base.appendingPathComponent("PhotosBackup", isDirectory: true)
-                .appendingPathComponent("upload-queue-v1.json")
-            ledgerURL = base.appendingPathComponent("PhotosBackup", isDirectory: true)
-                .appendingPathComponent("completed-sources-v1.log")
+                .appendingPathComponent("PhotosBackup", isDirectory: true)
+            queueURL = base.appendingPathComponent("upload-queue-v1.json")
+            logURL = base.appendingPathComponent("completed-sources-v1.log")
         }
+        self.url = queueURL
+        ledgerURL = logURL
+        snapshotWriter = SnapshotWriter(url: queueURL)
+        ledgerWriter = LedgerWriter(url: logURL)
     }
 
     var storesCompletionLedgerSeparately: Bool { true }
 
     func load() throws -> UploadQueueSnapshot? {
+        snapshotWriter.drain()
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return try JSONDecoder().decode(UploadQueueSnapshot.self, from: Data(contentsOf: url))
     }
 
     func save(_ snapshot: UploadQueueSnapshot) throws {
-        let directory = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(snapshot).write(to: url, options: .atomic)
-        applyDataProtectionIfAvailable(atPath: url.path)
+        try snapshotWriter.write(snapshot)
     }
+
+    func drain() { snapshotWriter.drain() }
 
     func loadCompletedSourceKeys(for accountIdentifier: String) throws -> [String] {
         var keys: [String] = []
@@ -191,22 +292,11 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
     /// launch after upgrading a large library take minutes.
     func recordCompletedSourceKeys(_ keys: [String], for accountIdentifier: String) throws {
         guard !keys.isEmpty else { return }
-        let directory = ledgerURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        if !FileManager.default.fileExists(atPath: ledgerURL.path) {
-            guard FileManager.default.createFile(atPath: ledgerURL.path, contents: nil) else {
-                throw CocoaError(.fileWriteUnknown)
-            }
-        }
         let account = Data(accountIdentifier.utf8).base64EncodedString()
         let payload = keys
             .map { account + "\t" + Data($0.utf8).base64EncodedString() + "\n" }
             .joined()
-        let handle = try FileHandle(forWritingTo: ledgerURL)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-        try handle.write(contentsOf: Data(payload.utf8))
-        applyDataProtectionIfAvailable(atPath: ledgerURL.path)
+        try ledgerWriter.append(Data(payload.utf8))
     }
 
     private func rewriteLedger(ownKeys: [String], account: String, otherLines: [String]) throws {
@@ -215,6 +305,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         let own = ownKeys.map { account + "\t" + Data($0.utf8).base64EncodedString() }
         let lines = otherLines + own
         let output = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
+        ledgerWriter.invalidate()
         try output.write(to: ledgerURL, atomically: true, encoding: .utf8)
         applyDataProtectionIfAvailable(atPath: ledgerURL.path)
     }
@@ -252,6 +343,7 @@ struct FileUploadQueuePersistence: UploadQueuePersisting {
         let directory = ledgerURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let output = kept.isEmpty ? "" : kept.joined(separator: "\n") + "\n"
+        ledgerWriter.invalidate()
         try output.write(to: ledgerURL, atomically: true, encoding: .utf8)
         applyDataProtectionIfAvailable(atPath: ledgerURL.path)
     }

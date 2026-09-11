@@ -268,6 +268,12 @@ actor GPMCClient {
             configuration.waitsForConnectivity = true
             configuration.timeoutIntervalForRequest = 120
             configuration.timeoutIntervalForResource = 60 * 60
+            // Callers run the duplicate-check RPC many-at-a-time against a
+            // single host. The default cap (6) would queue the rest behind it
+            // on HTTP/1.1; over HTTP/2 the requests multiplex and this changes
+            // nothing. A ceiling rather than a tuning knob — the caller's own
+            // concurrency limit is what actually decides the rate.
+            configuration.httpMaximumConnectionsPerHost = 48
             let session = URLSession(configuration: configuration)
             self.session = session
             self.fileUploadTransport = fileUploadTransport ?? ForegroundFileUploadTransport(session: session)

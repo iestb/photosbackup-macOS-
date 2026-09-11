@@ -30,7 +30,7 @@ struct PhotosBackupApp: App {
         let network = NetworkPolicyMonitor()
         stack.queue.options.storageSaver = preferences.storageSaver
         stack.queue.options.useQuota = preferences.useQuota
-        stack.queue.setMaxConcurrent(preferences.concurrentUploads)
+        stack.setMaxConcurrentChecks(preferences.concurrentUploads)
         stack.setMaxConcurrentTransfers(preferences.concurrentTransfers)
         let automaticBackup = AutomaticBackupCoordinator(
             photos: stack,
@@ -94,7 +94,7 @@ struct PhotosBackupApp: App {
             .onChange(of: preferences.connection) { _ in automaticBackup.connectionPreferenceDidChange() }
             .onChange(of: preferences.storageSaver) { value in queue.options.storageSaver = value }
             .onChange(of: preferences.useQuota) { value in queue.options.useQuota = value }
-            .onChange(of: preferences.concurrentUploads) { value in queue.setMaxConcurrent(value) }
+            .onChange(of: preferences.concurrentUploads) { value in photos.setMaxConcurrentChecks(value) }
             .onChange(of: preferences.concurrentTransfers) { value in photos.setMaxConcurrentTransfers(value) }
             .onChange(of: preferences.automaticBackup) { _ in automaticBackup.backupConfigurationDidChange() }
             .onChange(of: preferences.selectedAlbumIDs) { _ in automaticBackup.backupConfigurationDidChange() }

@@ -10,6 +10,42 @@ import Foundation
 /// the order, and coalescing to the newest pending state keeps the main actor
 /// out of a hot loop it gains nothing from.
 final class UploadPhaseRelay: @unchecked Sendable {
+    /// How often a *single* item may report progress, set by `PhotosStack`
+    /// from the current concurrency.
+    ///
+    /// Every report mutates the queue's `@Published` items, and that
+    /// invalidates every view observing the queue — not just the row that
+    /// moved. A fixed per-item rate therefore costs (rate × concurrency)
+    /// whole-UI invalidations a second, which at the concurrency a first
+    /// macOS reconcile wants is hundreds. Progress fractions are cosmetic, so
+    /// the per-item rate drops as concurrency rises; phase changes still
+    /// arrive immediately via `flush()`, which ignores the interval.
+    static let reportInterval = IntervalBox(0.1)
+
+    /// A relay's interval is fixed at init, and relays are created per item,
+    /// so a change takes effect on the next item to start rather than
+    /// mid-upload. That is deliberate: nothing here is worth a lock on the
+    /// progress path.
+    static func interval(forConcurrency concurrency: Int) -> TimeInterval {
+        min(0.75, max(0.1, 0.025 * Double(concurrency)))
+    }
+
+    final class IntervalBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: TimeInterval
+
+        init(_ value: TimeInterval) { self.value = value }
+
+        var current: TimeInterval {
+            lock.lock(); defer { lock.unlock() }
+            return value
+        }
+
+        func set(_ newValue: TimeInterval) {
+            lock.lock(); value = newValue; lock.unlock()
+        }
+    }
+
     private let lock = NSLock()
     private var pending: UploadItem.State?
     private var lastSentAt = Date.distantPast
@@ -178,7 +214,7 @@ struct PhotosUploader {
         let client = self.client
         let transferGate = self.transferGate
         return { id, source, restoredCheckpoint, options, emit in
-            let relay = UploadPhaseRelay(emit: emit)
+            let relay = UploadPhaseRelay(interval: UploadPhaseRelay.reportInterval.current, emit: emit)
             defer { relay.stop() }
             guard let client = await client() else {
                 throw GPMCError(kind: .credentialRejected, message: "No Google account is connected. Connect one and try again.")

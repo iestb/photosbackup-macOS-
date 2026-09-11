@@ -216,7 +216,12 @@ final class PhotoAlbumStore: ObservableObject {
                     ?? PHAsset.fetchAssets(with: Self.allPhotosOptions())
                 var identifiers: [String] = []
                 identifiers.reserveCapacity(assets.count)
-                assets.enumerateObjects { asset, _, _ in identifiers.append(asset.localIdentifier) }
+                // Each enumerated PHAsset is autoreleased; a whole-library
+                // pass holds tens of thousands of them alive at once without
+                // a pool of its own to drain.
+                autoreleasepool {
+                    assets.enumerateObjects { asset, _, _ in identifiers.append(asset.localIdentifier) }
+                }
                 result[id] = identifiers
             }
             return result
@@ -249,9 +254,11 @@ final class PhotoAlbumStore: ObservableObject {
             } else {
                 assets = PHAsset.fetchAssets(with: Self.allPhotosOptions())
             }
-            assets.enumerateObjects { asset, _, _ in
-                guard seen.insert(asset.localIdentifier).inserted else { return }
-                sources.append(.asset(localIdentifier: asset.localIdentifier))
+            autoreleasepool {
+                assets.enumerateObjects { asset, _, _ in
+                    guard seen.insert(asset.localIdentifier).inserted else { return }
+                    sources.append(.asset(localIdentifier: asset.localIdentifier))
+                }
             }
         }
         return sources

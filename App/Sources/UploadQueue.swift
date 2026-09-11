@@ -245,6 +245,11 @@ final class UploadQueue: ObservableObject {
     /// `maxConcurrent` of them, so `overallFraction` sums a handful of rows
     /// rather than the entire queue.
     private var fractionalIDs: Set<UUID> = []
+    /// Rows actually doing work right now. Same reasoning as `fractionalIDs`:
+    /// the activity list wants exactly these rows, and filtering the whole
+    /// queue for them on every publish is a walk of the entire library
+    /// hundreds of times a second while a backup runs.
+    private var workingIDs: Set<UUID> = []
     /// Where the search for the next startable row left off. `setState` pulls it
     /// back whenever an earlier row returns to `.queued`, and the pause flags
     /// reset it because they change which rows count as startable.
@@ -271,6 +276,7 @@ final class UploadQueue: ObservableObject {
         items[index].state = state
         if !state.isFinished, state.fraction != nil { fractionalIDs.insert(id) }
         else { fractionalIDs.remove(id) }
+        if state.isWorking { workingIDs.insert(id) } else { workingIDs.remove(id) }
         if state == .queued { scanCursor = min(scanCursor, index) }
     }
 
@@ -295,6 +301,7 @@ final class UploadQueue: ObservableObject {
         indexByID.removeAll(keepingCapacity: true)
         queuedSourceKeys.removeAll(keepingCapacity: true)
         fractionalIDs.removeAll(keepingCapacity: true)
+        workingIDs.removeAll(keepingCapacity: true)
         scanCursor = 0
         indexByID.reserveCapacity(items.count)
         for (offset, item) in items.enumerated() {
@@ -302,6 +309,7 @@ final class UploadQueue: ObservableObject {
             if let key = item.source.queueDeduplicationKey { queuedSourceKeys.insert(key) }
             tally(item.state, by: 1)
             if !item.state.isFinished, item.state.fraction != nil { fractionalIDs.insert(item.id) }
+            if item.state.isWorking { workingIDs.insert(item.id) }
         }
     }
 
@@ -342,6 +350,13 @@ final class UploadQueue: ObservableObject {
             ?? (isUserPaused ? "You paused backup. Resume to continue." : nil)
             ?? networkPauseReason
             ?? systemPauseReason
+    }
+    /// The rows an activity list should show: exporting, hashing, checking or
+    /// uploading, in queue order. Read on every publish, so it is built from
+    /// the maintained `workingIDs` set — at most `maxConcurrent` rows —
+    /// rather than by filtering a queue the size of the whole library.
+    var workingItems: [UploadItem] {
+        workingIDs.compactMap { indexByID[$0] }.sorted().map { items[$0] }
     }
     var retainedStagingURLs: Set<URL> { Set(items.compactMap { $0.checkpoint?.fileURL }) }
     /// Cancelled and failed rows are excluded, finished ones count as a whole
@@ -547,6 +562,45 @@ final class UploadQueue: ObservableObject {
         setState(.queued, at: index)
     }
 
+    /// How many succeeded rows to keep around for the UI to show.
+    private static let completedRowLimit = 300
+
+    /// Drop succeeded rows once they pile up.
+    ///
+    /// A `.done` or `.alreadyBackedUp` row holds nothing the queue still
+    /// needs: the durable record is `completedSourceKeys`, the snapshot
+    /// already skips it, and the dashboard's "backed up" total counts keys
+    /// rather than rows. Reconciling a library iOS had already backed up left
+    /// tens of thousands of them resident, so every rebuild, every snapshot
+    /// pass and every list diff scaled with the size of the library instead
+    /// of with the work still to do.
+    ///
+    /// Only succeeded rows: a cancelled or failed row is the durable "don't
+    /// retry this" marker an automatic rescan checks against, so dropping one
+    /// would quietly undo the user's decision.
+    ///
+    /// Trimmed in one batch per `completedRowLimit` completions rather than on
+    /// each one, so the O(n) rebuild it forces is amortised away.
+    private func trimCompletedRowsIfNeeded() {
+        guard counts.completed > Self.completedRowLimit * 2 else { return }
+        var budget = Self.completedRowLimit
+        var kept: [UploadItem] = []
+        kept.reserveCapacity(items.count)
+        // Back to front, so the rows kept are the most recent completions.
+        for item in items.reversed() {
+            switch item.state {
+            case .done, .alreadyBackedUp:
+                guard budget > 0 else { continue }
+                budget -= 1
+            default:
+                break
+            }
+            kept.append(item)
+        }
+        items = Array(kept.reversed())
+        rebuildDerivedState()
+    }
+
     func clearFinished() {
         items.removeAll { $0.state.isFinished }
         rebuildDerivedState()
@@ -675,9 +729,11 @@ final class UploadQueue: ObservableObject {
 
     /// Write any coalesced snapshot immediately. Called when the app is about
     /// to be suspended, where the next main-actor turn may never come.
+    /// The store writes asynchronously, so this also waits for the write to
+    /// land: the process may be seconds from exiting.
     func flushPendingWrites() {
-        guard persistScheduled else { return }
-        persistNow()
+        if persistScheduled { persistNow() }
+        persistence?.drain()
     }
 
     /// Clear the halt after the account has been reconnected; everything that
@@ -847,8 +903,12 @@ final class UploadQueue: ObservableObject {
         case .checkpoint(let checkpoint):
             items[index].checkpoint = checkpoint
             // The durable hand-off to the background transfer: this must be on
-            // disk before the worker proceeds, not on the next turn.
+            // disk before the worker proceeds, not on the next turn — and the
+            // store writes asynchronously, so "written" means waiting for it.
+            // The only path that pays for the wait: everything else the queue
+            // persists is recoverable by re-running the work.
             persistNow()
+            persistence?.drain()
         }
     }
 
@@ -864,6 +924,8 @@ final class UploadQueue: ObservableObject {
             if let key = items[index].source.queueDeduplicationKey { completedSourceKeys.insert(key) }
             items[index].checkpoint = nil
             recordCompletion(for: items[index])
+            // Invalidates `index`, so nothing below may use it.
+            trimCompletedRowsIfNeeded()
             persist()
         case .failure(let error):
             if userCancelled.remove(id) != nil {
