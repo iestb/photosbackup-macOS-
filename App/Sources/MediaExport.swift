@@ -201,8 +201,12 @@ enum MediaLibrary {
         return status == .authorized || status == .limited
     }
 
+#if os(iOS)
     /// Prefer asset identifiers so filenames and capture dates survive; fall
     /// back to the item provider for a lazy copy when the library is off limits.
+    /// `PHPickerResult` (from the iOS-only `PHPickerViewController`) has no
+    /// macOS equivalent — the macOS picker in PhotoPicker.swift builds
+    /// `MediaSource.asset` values directly instead of going through this.
     static func sources(forPickerResults results: [PHPickerResult]) -> [MediaSource] {
         let readable = isReadable
         return results.map { result in
@@ -210,6 +214,7 @@ enum MediaLibrary {
             return .picked(PickedItem(result.itemProvider))
         }
     }
+#endif
 }
 
 extension PHAssetResourceManager {

@@ -219,7 +219,7 @@ struct PhotosUploader {
         let client = self.client
         return { id, checkpoint in
             if let client = await client() { await client.cancelTransfer(id) }
-            else { await BackgroundFileUploadTransport.shared.cancel(transferID: id) }
+            else { await AppFileUploadTransport.shared.cancel(transferID: id) }
             await exporter.discard(checkpoint.exportedMedia)
         }
     }
