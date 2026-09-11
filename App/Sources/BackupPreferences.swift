@@ -30,6 +30,7 @@ final class BackupPreferences: ObservableObject {
         static let connection = "backup.connection"
         static let completedOnboarding = "app.completedOnboarding"
         static let concurrentUploads = "backup.concurrentUploads"
+        static let concurrentTransfers = "backup.concurrentTransfers"
         static let storageSaver = "backup.storageSaver"
         static let useQuota = "backup.useQuota"
     }
@@ -39,6 +40,12 @@ final class BackupPreferences: ObservableObject {
     @Published var connection: BackupConnection { didSet { defaults.set(connection.rawValue, forKey: Key.connection) } }
     @Published var completedOnboarding: Bool { didSet { defaults.set(completedOnboarding, forKey: Key.completedOnboarding) } }
     @Published var concurrentUploads: Int { didSet { defaults.set(concurrentUploads, forKey: Key.concurrentUploads) } }
+    /// How many uploads may have file bytes actively moving at once — see
+    /// `TransferGate`. Separate from `concurrentUploads`, which caps how many
+    /// items are simultaneously being checked/exported/hashed: that stage is
+    /// cheap network-metadata work, but a transfer is bandwidth-bound, so the
+    /// same number is rarely right for both.
+    @Published var concurrentTransfers: Int { didSet { defaults.set(concurrentTransfers, forKey: Key.concurrentTransfers) } }
     @Published var storageSaver: Bool { didSet { defaults.set(storageSaver, forKey: Key.storageSaver) } }
     @Published var useQuota: Bool { didSet { defaults.set(useQuota, forKey: Key.useQuota) } }
 
@@ -54,6 +61,8 @@ final class BackupPreferences: ObservableObject {
         // as 0, which is not a legal concurrency and would clamp to 1.
         concurrentUploads = UploadQueue.clampedConcurrency(
             defaults.object(forKey: Key.concurrentUploads) as? Int ?? 2)
+        concurrentTransfers = UploadQueue.clampedTransferConcurrency(
+            defaults.object(forKey: Key.concurrentTransfers) as? Int ?? 3)
         storageSaver = defaults.bool(forKey: Key.storageSaver)
         useQuota = defaults.bool(forKey: Key.useQuota)
     }

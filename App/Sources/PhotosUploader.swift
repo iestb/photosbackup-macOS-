@@ -83,6 +83,83 @@ final class UploadPhaseRelay: @unchecked Sendable {
     }
 }
 
+/// Caps how many uploads may have file bytes actively moving (the PUT
+/// transfer and the small commit that finalizes it) at once — independent of
+/// `UploadQueue.maxConcurrent`, which caps how many items are simultaneously
+/// being exported/hashed/duplicate-checked. That earlier stage is cheap
+/// network-metadata work (or nothing at all, for an item already backed up),
+/// so a queue reconciling a large library benefits from a high number there.
+/// The transfer stage is bandwidth-bound: the same high number applied to
+/// actual multi-megabyte file transfers saturates a typical upload
+/// connection, and everything — including the small "finishing" commit call
+/// for an item whose bytes already went through — crawls. Without the split,
+/// one concurrency setting could never be right for both phases at once.
+///
+/// A plain lock-based class, not an actor: `release()` needs to be callable
+/// synchronously from a `defer`, which can't `await` an actor hop.
+final class TransferGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var limit: Int
+    private var available: Int
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(limit: Int) {
+        let clamped = max(1, limit)
+        self.limit = clamped
+        self.available = clamped
+    }
+
+    func acquire() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if available > 0 {
+                available -= 1
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func release() {
+        lock.lock()
+        if !waiters.isEmpty {
+            let waiter = waiters.removeFirst()
+            lock.unlock()
+            waiter.resume()
+        } else {
+            available = min(limit, available + 1)
+            lock.unlock()
+        }
+    }
+
+    /// Live setting changes, same philosophy as `UploadQueue.setMaxConcurrent`:
+    /// raising the limit wakes waiters immediately; lowering it never
+    /// preempts a transfer already in flight, it just stops handing out new
+    /// permits until usage falls back within the new limit.
+    func setLimit(_ newLimit: Int) {
+        lock.lock()
+        let clamped = max(1, newLimit)
+        let delta = clamped - limit
+        limit = clamped
+        guard delta > 0 else {
+            available = max(0, available + delta)
+            lock.unlock()
+            return
+        }
+        available += delta
+        var toWake: [CheckedContinuation<Void, Never>] = []
+        while available > 0, !waiters.isEmpty {
+            toWake.append(waiters.removeFirst())
+            available -= 1
+        }
+        lock.unlock()
+        toWake.forEach { $0.resume() }
+    }
+}
+
 /// The one real `UploadWorker`: export the item to a file, hand it to
 /// `GPMCClient`, and retain it across retry/relaunch boundaries until the
 /// transfer commits or reaches a terminal state.
@@ -94,10 +171,12 @@ struct PhotosUploader {
     /// Resolved per item rather than captured, so a reconnect swaps the client
     /// under a queue that is already running.
     let client: @Sendable () async -> GPMCClient?
+    let transferGate: TransferGate
 
     func worker() -> UploadWorker {
         let exporter = self.exporter
         let client = self.client
+        let transferGate = self.transferGate
         return { id, source, restoredCheckpoint, options, emit in
             let relay = UploadPhaseRelay(emit: emit)
             defer { relay.stop() }
@@ -155,6 +234,12 @@ struct PhotosUploader {
             guard let prepared = checkpoint.prepared else {
                 throw GPMCError(message: "Could not prepare the upload.")
             }
+            // Only the transfer + commit below need the gate: everything
+            // above this point (export, hashing, the duplicate check) is
+            // cheap network-metadata work or nothing at all, so it stays
+            // gated only by UploadQueue.maxConcurrent, same as before.
+            await transferGate.acquire()
+            defer { transferGate.release() }
             let completed: PreparedUpload
             do {
                 completed = try await client.transfer(prepared, file: checkpoint.fileURL, transferID: id,

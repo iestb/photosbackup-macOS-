@@ -120,9 +120,11 @@ struct SettingsView: View {
     private var backupSection: some View {
         Section {
             Toggle("Automatic Backup", isOn: $preferences.automaticBackup)
+#if os(iOS)
             Picker("Use Connection", selection: $preferences.connection) {
                 ForEach(BackupConnection.allCases) { option in Text(option.title).tag(option) }
             }
+#endif
             if let reason = queue.networkPauseReason {
                 Label(reason, systemImage: "wifi.exclamationmark")
                     .font(.footnote)
@@ -133,6 +135,13 @@ struct SettingsView: View {
                     Text(count.formatted()).tag(count)
                 }
             }
+#if os(macOS)
+            Picker("Simultaneous Transfers", selection: $preferences.concurrentTransfers) {
+                ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { count in
+                    Text(count.formatted()).tag(count)
+                }
+            }
+#endif
             Toggle("Storage Saver", isOn: $preferences.storageSaver)
             Toggle("Count Against Storage Quota", isOn: $preferences.useQuota)
 #if os(macOS)
@@ -151,7 +160,7 @@ struct SettingsView: View {
     private var concurrentUploadsFooter: String {
         let storageSaverNote = "\n\nStorage Saver asks Google Photos to reduce file size. Live Photos currently back up as still images."
 #if os(macOS)
-        return "More simultaneous uploads finish a large backup sooner — useful the first time this Mac reconciles a library iOS already backed up. Each one stages a full-size copy on disk and hashes it end to end while it runs, so high values use more storage, CPU and network at once. Lowering it lets uploads already running finish first." + storageSaverNote
+        return "Simultaneous Uploads controls how many items are checked, exported and hashed at once — useful the first time this Mac reconciles a library iOS already backed up, since that work is cheap and network-light. Simultaneous Transfers separately caps how many are actually sending file bytes at once, since that is bandwidth-bound and a high value there can saturate your connection. Lowering either setting lets work already running finish first." + storageSaverNote
 #else
         return "More simultaneous uploads finish a large backup sooner. Each one stages a full-size copy on the device while it runs, so high values use more storage, battery and data at once — 2 suits most phones. Lowering it lets uploads already running finish first." + storageSaverNote
 #endif

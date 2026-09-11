@@ -17,6 +17,7 @@ struct PhotosBackupApp: App {
 #if os(iOS)
     @Environment(\.scenePhase) private var scenePhase
 #endif
+    private let photos: PhotosStack
     private let network: NetworkPolicyMonitor
     private let automaticBackup: AutomaticBackupCoordinator
 
@@ -30,6 +31,7 @@ struct PhotosBackupApp: App {
         stack.queue.options.storageSaver = preferences.storageSaver
         stack.queue.options.useQuota = preferences.useQuota
         stack.queue.setMaxConcurrent(preferences.concurrentUploads)
+        stack.setMaxConcurrentTransfers(preferences.concurrentTransfers)
         let automaticBackup = AutomaticBackupCoordinator(
             photos: stack,
             account: stack.account,
@@ -52,6 +54,7 @@ struct PhotosBackupApp: App {
         _queue = StateObject(wrappedValue: stack.queue)
         _preferences = StateObject(wrappedValue: preferences)
         _albums = StateObject(wrappedValue: albums)
+        self.photos = stack
         self.network = network
         self.automaticBackup = automaticBackup
         network.onStatusChange = { [weak automaticBackup] _ in automaticBackup?.networkDidChange() }
@@ -92,6 +95,7 @@ struct PhotosBackupApp: App {
             .onChange(of: preferences.storageSaver) { value in queue.options.storageSaver = value }
             .onChange(of: preferences.useQuota) { value in queue.options.useQuota = value }
             .onChange(of: preferences.concurrentUploads) { value in queue.setMaxConcurrent(value) }
+            .onChange(of: preferences.concurrentTransfers) { value in photos.setMaxConcurrentTransfers(value) }
             .onChange(of: preferences.automaticBackup) { _ in automaticBackup.backupConfigurationDidChange() }
             .onChange(of: preferences.selectedAlbumIDs) { _ in automaticBackup.backupConfigurationDidChange() }
             .onChange(of: preferences.completedOnboarding) { _ in automaticBackup.backupConfigurationDidChange() }

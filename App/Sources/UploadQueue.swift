@@ -183,6 +183,13 @@ final class UploadQueue: ObservableObject {
     static let concurrencyRange = 1...10
 #endif
 
+    /// How many uploads may have file bytes actively moving at once — see
+    /// `TransferGate`. Deliberately the same on both platforms and much
+    /// narrower than `concurrencyRange`: this is bandwidth-bound, not
+    /// CPU/battery-bound, and a typical upload connection saturates well
+    /// before this ceiling regardless of what device is asking.
+    static let transferConcurrencyRange = 1...10
+
     private(set) var maxConcurrent: Int
     let maxAttempts: Int
     private let worker: UploadWorker
@@ -332,7 +339,7 @@ final class UploadQueue: ObservableObject {
     var hasWorkableItems: Bool { counts.unfinished > counts.waitingForICloud }
     var pauseReason: String? {
         haltReason
-            ?? (isUserPaused ? "You paused backup. Tap Resume to continue." : nil)
+            ?? (isUserPaused ? "You paused backup. Resume to continue." : nil)
             ?? networkPauseReason
             ?? systemPauseReason
     }
@@ -457,6 +464,10 @@ final class UploadQueue: ObservableObject {
 
     static func clampedConcurrency(_ value: Int) -> Int {
         min(concurrencyRange.upperBound, max(concurrencyRange.lowerBound, value))
+    }
+
+    static func clampedTransferConcurrency(_ value: Int) -> Int {
+        min(transferConcurrencyRange.upperBound, max(transferConcurrencyRange.lowerBound, value))
     }
 
     /// Change how many uploads run at once. Raising it starts more immediately;

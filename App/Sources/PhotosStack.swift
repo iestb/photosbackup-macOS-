@@ -8,16 +8,27 @@ final class PhotosStack {
     let account: PhotosAccount
     let queue: UploadQueue
     private let exporter: MediaExporter
+    private let transferGate: TransferGate
     private var startTask: Task<Void, Never>?
 
     init(store: CredentialStore = CredentialStore(), exporter: MediaExporter = MediaExporter()) {
         let account = PhotosAccount(store: store)
-        let uploader = PhotosUploader(exporter: exporter) { await account.currentClient() }
+        let transferGate = TransferGate(limit: 3)
+        let uploader = PhotosUploader(exporter: exporter, client: { await account.currentClient() },
+                                     transferGate: transferGate)
         self.account = account
         self.exporter = exporter
+        self.transferGate = transferGate
         self.queue = UploadQueue(worker: uploader.worker(), persistence: FileUploadQueuePersistence(),
                                  checkpointCleaner: uploader.checkpointCleaner())
         self.queue.onCredentialRejected = { [weak account] error in account?.report(error) }
+    }
+
+    /// How many uploads may have file bytes actively moving at once — see
+    /// `TransferGate`. Independent of `queue.setMaxConcurrent`, which caps
+    /// how many items are simultaneously being checked/exported/hashed.
+    func setMaxConcurrentTransfers(_ value: Int) {
+        transferGate.setLimit(value)
     }
 
     /// Restore the saved account and then sweep only staging files that no

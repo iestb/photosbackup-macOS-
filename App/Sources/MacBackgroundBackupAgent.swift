@@ -200,17 +200,23 @@ struct MenuBarContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("Automatic Backup", isOn: $preferences.automaticBackup)
 
-            LabeledContentCompat("Connection") {
-                Picker("", selection: $preferences.connection) {
-                    ForEach(BackupConnection.allCases) { Text($0.title).tag($0) }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
+            if let reason = queue.networkPauseReason {
+                Label(reason, systemImage: "wifi.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
             LabeledContentCompat("Simultaneous Uploads") {
                 Picker("", selection: $preferences.concurrentUploads) {
                     ForEach(Array(UploadQueue.concurrencyRange), id: \.self) { Text($0.formatted()).tag($0) }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            LabeledContentCompat("Simultaneous Transfers") {
+                Picker("", selection: $preferences.concurrentTransfers) {
+                    ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { Text($0.formatted()).tag($0) }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
