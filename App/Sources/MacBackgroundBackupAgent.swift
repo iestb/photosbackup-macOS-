@@ -213,6 +213,7 @@ struct MenuBarContentView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
+            .help("How many items are checked against Google Photos and prepared at once. Cheap, network-light work — safe to keep high.")
 
             LabeledContentCompat("Simultaneous Transfers") {
                 Picker("", selection: $preferences.concurrentTransfers) {
@@ -221,6 +222,7 @@ struct MenuBarContentView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
+            .help("How many are actually sending file bytes at once. Bandwidth-heavy — a high value here can slow everything down.")
 
             Toggle("Storage Saver", isOn: $preferences.storageSaver)
 

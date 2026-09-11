@@ -27,11 +27,6 @@ struct ContentView: View {
 }
 
 private struct MainAppView: View {
-    /// An enum, not raw tab indices: macOS drops the Activity tab below (the
-    /// menu bar's Status tab and Dashboard's own Stop button cover what it
-    /// was for there), and a hardcoded `selectedTab = 3` for Settings would
-    /// have silently pointed at the wrong tab on whichever platform doesn't
-    /// have four of them.
     private enum Tab: Hashable {
         case home, albums, activity, settings
     }
@@ -53,6 +48,10 @@ private struct MainAppView: View {
 
 #if os(iOS)
             UploadsView()
+                .tabItem { Label("Activity", systemImage: "arrow.up.circle.fill") }
+                .tag(Tab.activity)
+#elseif os(macOS)
+            MacActivityView()
                 .tabItem { Label("Activity", systemImage: "arrow.up.circle.fill") }
                 .tag(Tab.activity)
 #endif

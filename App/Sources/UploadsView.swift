@@ -1,5 +1,69 @@
 import SwiftUI
 
+#if os(macOS)
+/// A pared-down Activity tab for macOS: just what's actively moving right
+/// now, with none of `UploadsView`'s manual-picker or queue-management
+/// controls — the menu bar and Home tab already cover pausing, stopping and
+/// retrying. Deliberately excludes queued/waiting and finished rows so it
+/// stays a short, glanceable list instead of growing to the size of the
+/// whole library during a bulk reconcile.
+struct MacActivityView: View {
+    @EnvironmentObject private var queue: UploadQueue
+
+    private var inProgressItems: [UploadItem] {
+        queue.items.filter { $0.state.isWorking }
+    }
+
+    var body: some View {
+        NavigationRoot {
+            List {
+                if inProgressItems.isEmpty {
+                    EmptyState(
+                        symbol: "checkmark.circle",
+                        title: "Nothing in progress",
+                        message: "Items currently being checked or uploaded will appear here."
+                    )
+                    .listRowBackground(Color.clear)
+                } else {
+                    Section {
+                        ForEach(inProgressItems) { item in activityRow(item) }
+                    } header: {
+                        HStack {
+                            Text("In Progress")
+                            Spacer()
+                            Text("\(inProgressItems.count)")
+                        }
+                    }
+                }
+            }
+            .insetGroupedListStyleCompat()
+            .navigationTitle("Activity")
+        }
+    }
+
+    private func activityRow(_ item: UploadItem) -> some View {
+        HStack(spacing: 12) {
+            FeatureIcon(symbol: "arrow.up", color: BackupTheme.blue, size: 42)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(item.name).font(.subheadline.weight(.medium)).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    if item.byteCount > 0 {
+                        Text(item.byteCount.formatted(.byteCount(style: .file)))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Text(item.state.label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let fraction = item.state.fraction {
+                    ProgressView(value: fraction).tint(BackupTheme.blue)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+#endif
+
 struct UploadsView: View {
     @EnvironmentObject private var account: PhotosAccount
     @EnvironmentObject private var queue: UploadQueue

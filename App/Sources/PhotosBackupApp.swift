@@ -125,6 +125,12 @@ struct PhotosBackupApp: App {
         // window does not stop backups.
         WindowGroup("Photos Backup", id: "main") {
             mainContent()
+                // Form on macOS lays out a fixed label column sized to the
+                // widest row and does not reflow it as the window narrows —
+                // below this width its labels and trailing controls clip
+                // instead of wrapping. A floor here keeps every tab legible
+                // instead of relying on the user never shrinking the window.
+                .frame(minWidth: 680, minHeight: 480)
         }
         .defaultSize(width: 900, height: 680)
 
