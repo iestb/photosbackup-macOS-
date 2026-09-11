@@ -30,6 +30,7 @@ struct MenuBarContentView: View {
     @State private var tab: Tab = .status
     @State private var isStartingManualRun = false
     @State private var manualRunMessage: String?
+    @State private var showingStopConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -66,6 +67,16 @@ struct MenuBarContentView: View {
             .padding(14)
         }
         .frame(width: 300)
+        .confirmationDialog(
+            "Stop all backups?",
+            isPresented: $showingStopConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Stop Backup", role: .destructive) { stopBackup() }
+            Button("Keep Backing Up", role: .cancel) {}
+        } message: {
+            Text(stopBackupMessage)
+        }
     }
 
     private var statusTab: some View {
@@ -80,6 +91,38 @@ struct MenuBarContentView: View {
             }
             if !queue.isIdle {
                 ProgressView(value: queue.overallFraction).tint(BackupTheme.blue).padding(.top, 2)
+            }
+
+            if !queue.isIdle || queue.isUserPaused {
+                HStack(spacing: 8) {
+                    if queue.isUserPaused {
+                        Button {
+                            queue.resumeUserPausedUploads()
+                        } label: {
+                            Label("Resume", systemImage: "play.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(!account.status.isUsable)
+                    } else if queue.pauseReason == nil {
+                        Button {
+                            queue.pauseAfterCurrentUploads()
+                        } label: {
+                            Label("Pause", systemImage: "pause.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    if !queue.isIdle {
+                        Button(role: .destructive) {
+                            showingStopConfirmation = true
+                        } label: {
+                            Label("Stop", systemImage: "stop.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, 2)
             }
 
             Divider().padding(.vertical, 4)
@@ -157,6 +200,18 @@ struct MenuBarContentView: View {
             isStartingManualRun = false
             manualRunMessage = DashboardView.message(for: outcome)
         }
+    }
+
+    private var stopBackupMessage: String {
+        if preferences.automaticBackup {
+            return "Uploads in progress will be cancelled, the queue will be cleared, and Automatic Backup will be turned off. Photos already backed up are not affected."
+        }
+        return "Uploads in progress will be cancelled and the queue will be cleared. Photos already backed up are not affected."
+    }
+
+    private func stopBackup() {
+        preferences.automaticBackup = false
+        queue.cancelAll()
     }
 }
 

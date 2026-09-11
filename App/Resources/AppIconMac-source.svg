@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5EA7FF"/>
+      <stop offset="100%" stop-color="#1A73E8"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="30%" cy="20%" r="75%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cloud" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#DCEAFF"/>
+    </linearGradient>
+    <radialGradient id="petalShade0" cx="32%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="petalShade1" cx="32%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="petalShade2" cx="32%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="petalShade3" cx="32%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </radialGradient>
+    <radialGradient id="petalShade4" cx="32%" cy="22%" r="90%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.10"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="60" y="60" width="904" height="904" rx="224" ry="224" fill="url(#bg)"/>
+  <rect x="60" y="60" width="904" height="904" rx="224" ry="224" fill="url(#bgGlow)"/>
+
+  <g transform="translate(512.0,512.0) scale(0.78)">
+    <g transform="rotate(0.0)"><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="#FBBC04"/><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="url(#petalShade0)"/></g>
+    <g transform="rotate(72.0)"><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="#34A853"/><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="url(#petalShade1)"/></g>
+    <g transform="rotate(144.0)"><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="#4285F4"/><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="url(#petalShade2)"/></g>
+    <g transform="rotate(216.0)"><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="#A142F4"/><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="url(#petalShade3)"/></g>
+    <g transform="rotate(288.0)"><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="#EA4335"/><path d="M 0.0,-20.0 C -10.0,-90.0 -124.4,-215.4 -132.4,-305.4 A 150.0,150.0 0 1,1 132.4,-305.4 C 124.4,-215.4 10.0,-90.0 0.0,-20.0 Z" fill="url(#petalShade4)"/></g>
+  </g>
+
+  <g transform="translate(512.0,512.0) scale(0.82)">
+    <path d="M -108,10 C -140,10 -164,-10 -164,-34 C -164,-58 -142,-78 -116,-78 C -112,-78 -108,-77 -104,-76 C -96,-108 -62,-132 -22,-132 C 18,-132 52,-108 62,-74 C 67,-76 73,-77 79,-77 C 108,-77 132,-54 132,-25 C 132,4 108,27 79,27 L -108,27 Z" fill="#000000" opacity="0.12" transform="translate(0,6)"/>
+    <path d="M -108,10 C -140,10 -164,-10 -164,-34 C -164,-58 -142,-78 -116,-78 C -112,-78 -108,-77 -104,-76 C -96,-108 -62,-132 -22,-132 C 18,-132 52,-108 62,-74 C 67,-76 73,-77 79,-77 C 108,-77 132,-54 132,-25 C 132,4 108,27 79,27 L -108,27 Z" fill="url(#cloud)"/>
+  </g>
+</svg>

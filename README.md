@@ -138,10 +138,6 @@ app in three places where iOS APIs have no macOS equivalent:
   `ForegroundFileUploadTransport` on a long-lived session, since the app is
   expected to keep running as a background agent instead.
 
-The shared asset catalog only has iOS-sized app icons; the Mac build
-currently runs with the system's default app icon until a macOS icon set
-(16/32/128/256/512pt, @1x/@2x) is added to `AppIcon.appiconset`.
-
 This macOS port has not been built or run on an actual Mac/Xcode yet — it
 was written and reviewed without one available. Treat the first build as a
 bring-up: check the console for anything the compiler or `xcodegen`
