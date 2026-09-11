@@ -17,7 +17,7 @@ struct UploadsView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationRoot {
             List {
                 manualBackupSection
                 if let reason = queue.pauseReason { pausedSection(reason) }
@@ -45,7 +45,6 @@ struct UploadsView: View {
                 Text(stopBackupMessage)
             }
         }
-        .stackNavigationViewStyleCompat()
     }
 
     private func enqueue(_ sources: [MediaSource]) {
@@ -228,7 +227,7 @@ struct UploadsView: View {
     /// The whole reason, selectable and copyable. A support report is only as
     /// good as the text the reporter can actually get out of the app.
     private func failureSheet(_ failure: FailureDetail) -> some View {
-        NavigationView {
+        NavigationRoot {
             List {
                 Section("Item") { Text(failure.name).font(.subheadline) }
                 Section("What Google said") {
@@ -260,7 +259,6 @@ struct UploadsView: View {
                 }
             }
         }
-        .stackNavigationViewStyleCompat()
     }
 
     private func symbol(_ state: UploadItem.State) -> String {

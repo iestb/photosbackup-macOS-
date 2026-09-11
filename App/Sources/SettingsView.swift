@@ -18,7 +18,7 @@ struct SettingsView: View {
     private let gpmcURL = URL(string: "https://github.com/xob0t/gpmc")!
 
     var body: some View {
-        NavigationView {
+        NavigationRoot {
             Form {
                 accountSection
                 backupSection
@@ -34,7 +34,6 @@ struct SettingsView: View {
                 Text("New backups will stop until you connect again. Photos already backed up are not affected.")
             }
         }
-        .stackNavigationViewStyleCompat()
     }
 
     private var accountSection: some View {

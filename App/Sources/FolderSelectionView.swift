@@ -19,7 +19,7 @@ struct FolderSelectionView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationRoot {
             Group {
                 if albums.authorization == .notDetermined {
                     permissionState
@@ -54,7 +54,6 @@ struct FolderSelectionView: View {
             // move a "N of M backed up" count.
             .onChange(of: queue.completedSourceKeys) { _ in refreshBackedUpCounts() }
         }
-        .stackNavigationViewStyleCompat()
     }
 
     private var albumList: some View {

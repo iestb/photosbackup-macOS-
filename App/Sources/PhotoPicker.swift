@@ -58,7 +58,7 @@ struct PhotoPicker: View {
     @State private var selected: [String] = []
 
     var body: some View {
-        NavigationView {
+        NavigationRoot {
             Group {
                 if !model.canRead {
                     EmptyState(symbol: "photo.badge.exclamationmark",

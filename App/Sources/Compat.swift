@@ -67,16 +67,25 @@ extension View {
         self
 #endif
     }
+}
 
-    /// `StackNavigationViewStyle` is iOS/tvOS/watchOS only; a `NavigationView`
-    /// on macOS already behaves like a single stack for these single-column
-    /// layouts, so this is a no-op there.
-    @ViewBuilder
-    func stackNavigationViewStyleCompat() -> some View {
+/// Single-column navigation root for a top-level screen (a tab's content, a
+/// sheet). `NavigationView` in `.stack` style on iOS 15, where
+/// `NavigationStack` (iOS 16+) isn't available yet. `NavigationStack` on
+/// macOS: plain `NavigationView` there defaults to a sidebar/detail *split*
+/// style with no true single-pane equivalent (unlike iOS's `.stack`), which
+/// reads as a broken half-empty sidebar for a screen that's just one column
+/// of content — `NavigationStack` (macOS 13+, our minimum) always renders as
+/// a single stack and still hosts `NavigationLink` pushes the same way.
+struct NavigationRoot<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
 #if os(iOS)
-        self.navigationViewStyle(.stack)
+        NavigationView { content }
+            .navigationViewStyle(.stack)
 #else
-        self
+        NavigationStack { content }
 #endif
     }
 }

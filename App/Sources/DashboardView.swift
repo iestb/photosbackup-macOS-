@@ -28,7 +28,7 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationRoot {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     accountBanner
@@ -68,7 +68,6 @@ struct DashboardView: View {
             .onChange(of: albums.albums) { _ in refreshBackedUpCounts() }
             .onChange(of: queue.completedSourceKeys) { _ in refreshBackedUpCounts() }
         }
-        .stackNavigationViewStyleCompat()
     }
 
     private func enqueue(_ sources: [MediaSource]) {
