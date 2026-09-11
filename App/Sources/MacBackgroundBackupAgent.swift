@@ -27,6 +27,23 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// macOS restores a `WindowGroup` window's last frame automatically. If
+    /// the user ever shrank the main window before Settings needed the room
+    /// it does now, that undersized frame keeps coming back on every launch —
+    /// `.frame(minWidth:)` in the SwiftUI content only stops a *future*
+    /// manual resize from going below it, it does not grow a frame already
+    /// restored smaller. Called from the main window's `.onAppear`, since
+    /// this app is an `LSUIElement` accessory and the window may not exist
+    /// yet at `applicationDidFinishLaunching`.
+    static func enforceMainWindowMinimumSize() {
+        guard let window = NSApp.windows.first(where: { $0.title == "Photos Backup" }) else { return }
+        let minSize = NSSize(width: 720, height: 480)
+        window.minSize = minSize
+        if window.frame.width < minSize.width || window.frame.height < minSize.height {
+            window.setContentSize(minSize)
+        }
+    }
 }
 
 /// The `MenuBarExtra` dropdown: at-a-glance counts, a manual trigger, a way

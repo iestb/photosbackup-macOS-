@@ -89,6 +89,7 @@ struct PhotosBackupApp: App {
             .environmentObject(automaticBackup)
 #if os(macOS)
             .environmentObject(loginItems)
+            .onAppear { MacAppDelegate.enforceMainWindowMinimumSize() }
 #endif
             .task { await automaticBackup.start() }
             .onChange(of: preferences.connection) { _ in automaticBackup.connectionPreferenceDidChange() }
@@ -130,7 +131,7 @@ struct PhotosBackupApp: App {
                 // below this width its labels and trailing controls clip
                 // instead of wrapping. A floor here keeps every tab legible
                 // instead of relying on the user never shrinking the window.
-                .frame(minWidth: 680, minHeight: 480)
+                .frame(minWidth: 720, minHeight: 480)
         }
         .defaultSize(width: 900, height: 680)
 
