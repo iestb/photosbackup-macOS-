@@ -27,29 +27,39 @@ struct ContentView: View {
 }
 
 private struct MainAppView: View {
-    @State private var selectedTab = 0
+    /// An enum, not raw tab indices: macOS drops the Activity tab below (the
+    /// menu bar's Status tab and Dashboard's own Stop button cover what it
+    /// was for there), and a hardcoded `selectedTab = 3` for Settings would
+    /// have silently pointed at the wrong tab on whichever platform doesn't
+    /// have four of them.
+    private enum Tab: Hashable {
+        case home, albums, activity, settings
+    }
+    @State private var selectedTab: Tab = .home
     @State private var showConnectionTutorial = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
             DashboardView(
                 onConnect: { showConnectionTutorial = true },
-                onAccount: { selectedTab = 3 }
+                onAccount: { selectedTab = .settings }
             )
                 .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
+                .tag(Tab.home)
 
             FolderSelectionView()
                 .tabItem { Label("Albums", systemImage: "rectangle.stack.fill") }
-                .tag(1)
+                .tag(Tab.albums)
 
+#if os(iOS)
             UploadsView()
                 .tabItem { Label("Activity", systemImage: "arrow.up.circle.fill") }
-                .tag(2)
+                .tag(Tab.activity)
+#endif
 
             SettingsView { showConnectionTutorial = true }
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(3)
+                .tag(Tab.settings)
         }
         // Full screen, like onboarding's connect step. As a sheet, an
         // accidental downward swipe discards a single-use oauth_token and the

@@ -39,11 +39,14 @@ struct MenuBarContentView: View {
     @EnvironmentObject private var queue: UploadQueue
     @EnvironmentObject private var automaticBackup: AutomaticBackupCoordinator
     @EnvironmentObject private var preferences: BackupPreferences
+    @EnvironmentObject private var albums: PhotoAlbumStore
     @EnvironmentObject private var loginItems: LoginItemManager
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openURL) private var openURL
 
     private enum Tab: String, CaseIterable, Identifiable {
         case status = "Status"
+        case albums = "Albums"
         case settings = "Settings"
         var id: String { rawValue }
     }
@@ -51,6 +54,8 @@ struct MenuBarContentView: View {
     @State private var isStartingManualRun = false
     @State private var manualRunMessage: String?
     @State private var showingStopConfirmation = false
+    @State private var showingDisconnectConfirmation = false
+    @State private var albumSearch = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,6 +79,7 @@ struct MenuBarContentView: View {
             Group {
                 switch tab {
                 case .status: statusTab
+                case .albums: albumsTab
                 case .settings: settingsTab
                 }
             }
@@ -86,7 +92,7 @@ struct MenuBarContentView: View {
             }
             .padding(14)
         }
-        .frame(width: 300)
+        .frame(width: 320)
         .confirmationDialog(
             "Stop all backups?",
             isPresented: $showingStopConfirmation,
@@ -97,11 +103,25 @@ struct MenuBarContentView: View {
         } message: {
             Text(stopBackupMessage)
         }
+        .confirmationDialog(
+            "Disconnect Google Photos?",
+            isPresented: $showingDisconnectConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Disconnect", role: .destructive) { Task { await account.disconnect() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("New backups will stop until you connect again. Photos already backed up are not affected.")
+        }
         .onAppear { loginItems.refresh() }
     }
 
     private var statusTab: some View {
         VStack(alignment: .leading, spacing: 10) {
+            accountRow
+
+            Divider()
+
             statRow(label: "Backed up", value: queue.completedSourceCount.formatted())
             statRow(label: "In queue", value: queue.activeCount.formatted())
             if queue.deferredForICloudCount > 0 {
@@ -205,6 +225,117 @@ struct MenuBarContentView: View {
         }
     }
 
+    private var albumsTab: some View {
+        Group {
+            if albums.authorization == .notDetermined {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Allow photo access to choose albums.").font(.subheadline).foregroundStyle(.secondary)
+                    Button("Allow Photo Access") { Task { await albums.requestAccess() } }
+                }
+            } else if !albums.canRead {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Photo access is off.").font(.subheadline).foregroundStyle(.secondary)
+                    Button("Open System Settings") {
+                        if let url = PlatformPrivacySettings.url { openURL(url) }
+                    }
+                }
+            } else if albums.isLoading && albums.albums.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading albums…").foregroundStyle(.secondary)
+                }
+            } else if albums.albums.isEmpty {
+                Text("No albums found.").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Search albums", text: $albumSearch)
+                        .textFieldStyle(.roundedBorder)
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(filteredAlbums) { album in albumRow(album) }
+                        }
+                    }
+                    .frame(maxHeight: 260)
+                    Text("\(preferences.selectedAlbumIDs.count) selected")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .onAppear { albums.refreshInBackground() }
+    }
+
+    private var filteredAlbums: [PhotoAlbum] {
+        guard !albumSearch.isEmpty else { return albums.albums }
+        return albums.albums.filter { $0.title.localizedCaseInsensitiveContains(albumSearch) }
+    }
+
+    private func albumRow(_ album: PhotoAlbum) -> some View {
+        let isSelected = preferences.selectedAlbumIDs.contains(album.id)
+        return Button {
+            preferences.toggle(albumID: album.id)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: album.symbol)
+                    .foregroundStyle(BackupTheme.blue)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(album.title).font(.caption.weight(.medium)).lineLimit(1)
+                    Text("\(album.count.formatted()) items").font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? BackupTheme.blue : .secondary)
+            }
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var accountRow: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(accountTitle).font(.subheadline.weight(.medium)).lineLimit(1)
+                Text(accountSubtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+            if account.status.isUsable {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            }
+        }
+        if account.status.isUsable {
+            Button("Disconnect", role: .destructive) { showingDisconnectConfirmation = true }
+                .controlSize(.small)
+        } else {
+            Button {
+                openWindow(id: "connect")
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                Label("Connect Google Account", systemImage: "person.badge.key")
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private var accountTitle: String {
+        switch account.status {
+        case .loading: return "Checking account…"
+        case .disconnected: return "Not connected"
+        case .connected(let email, _): return email
+        case .rejected(let email, _): return email.isEmpty ? "Sign in again" : email
+        }
+    }
+
+    private var accountSubtitle: String {
+        switch account.status {
+        case .loading: return "Looking for a saved credential"
+        case .disconnected: return "Connect to start backing up"
+        case .connected(_, let since): return "Connected · \(since.formatted(date: .abbreviated, time: .omitted))"
+        case .rejected(_, let reason): return reason
+        }
+    }
+
     private func statRow(label: String, value: String, color: Color = .primary) -> some View {
         HStack {
             Text(label).foregroundStyle(.secondary)
@@ -241,6 +372,26 @@ struct MenuBarContentView: View {
     private func stopBackup() {
         preferences.automaticBackup = false
         queue.cancelAll()
+    }
+}
+
+/// The dedicated "connect" window's content — the same sign-in flow
+/// `ConnectionTutorialView` presents as a sheet on iOS, adapted to close its
+/// own window (via `dismissWindow`) instead of the sheet-oriented `dismiss()`
+/// environment action, since this is a real `WindowGroup` window, not a
+/// presentation.
+struct MacConnectAccountWindow: View {
+    @EnvironmentObject private var connector: AccountConnector
+    @Environment(\.dismissWindow) private var dismissWindow
+
+    var body: some View {
+        AccountConnectView(
+            onCaptured: { token in
+                dismissWindow(id: "connect")
+                Task { await connector.ingestWebToken(token) }
+            },
+            onCancel: { dismissWindow(id: "connect") }
+        )
     }
 }
 

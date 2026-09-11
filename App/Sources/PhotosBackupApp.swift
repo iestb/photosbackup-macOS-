@@ -124,12 +124,24 @@ struct PhotosBackupApp: App {
         }
         .defaultSize(width: 900, height: 680)
 
+        // A small window just for the Google sign-in flow, so connecting an
+        // account doesn't require opening the full tabbed app: the embedded
+        // browser genuinely needs real screen space (unlike the rest of the
+        // menu bar surface), and presenting a .sheet from inside a
+        // MenuBarExtra's own popover is unreliable on macOS.
+        WindowGroup("Connect Google Account", id: "connect") {
+            MacConnectAccountWindow()
+                .environmentObject(connector)
+        }
+        .defaultSize(width: 760, height: 640)
+
         MenuBarExtra {
             MenuBarContentView()
                 .environmentObject(account)
                 .environmentObject(queue)
                 .environmentObject(automaticBackup)
                 .environmentObject(preferences)
+                .environmentObject(albums)
                 .environmentObject(loginItems)
         } label: {
             Image(systemName: menuBarSymbol)
