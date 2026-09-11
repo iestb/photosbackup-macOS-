@@ -165,7 +165,17 @@ final class UploadQueue: ObservableObject {
     /// end, so the ceiling costs real disk and CPU, and because the background
     /// session's per-host connection limit is fixed when that session is
     /// created — going wider than that limit would not widen the transfers.
+    ///
+    /// macOS gets a higher ceiling: it isn't battery- or cellular-metered the
+    /// way a phone is, its hashing pass now genuinely runs off the main actor
+    /// (see `GPMCClient.sha1`), and a first backup on a new Mac routinely
+    /// means reconciling a library iOS already finished — tens of thousands
+    /// of items that just need a cheap "already backed up" check.
+#if os(macOS)
+    static let concurrencyRange = 1...24
+#else
     static let concurrencyRange = 1...10
+#endif
 
     private(set) var maxConcurrent: Int
     let maxAttempts: Int

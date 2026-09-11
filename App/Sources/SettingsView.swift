@@ -141,8 +141,17 @@ struct SettingsView: View {
         } header: {
             Text("Backup")
         } footer: {
-            Text("More simultaneous uploads finish a large backup sooner. Each one stages a full-size copy on the device while it runs, so high values use more storage, battery and data at once — 2 suits most phones. Lowering it lets uploads already running finish first.\n\nStorage Saver asks Google Photos to reduce file size. Live Photos currently back up as still images.")
+            Text(concurrentUploadsFooter)
         }
+    }
+
+    private var concurrentUploadsFooter: String {
+        let storageSaverNote = "\n\nStorage Saver asks Google Photos to reduce file size. Live Photos currently back up as still images."
+#if os(macOS)
+        return "More simultaneous uploads finish a large backup sooner — useful the first time this Mac reconciles a library iOS already backed up. Each one stages a full-size copy on disk and hashes it end to end while it runs, so high values use more storage, CPU and network at once. Lowering it lets uploads already running finish first." + storageSaverNote
+#else
+        return "More simultaneous uploads finish a large backup sooner. Each one stages a full-size copy on the device while it runs, so high values use more storage, battery and data at once — 2 suits most phones. Lowering it lets uploads already running finish first." + storageSaverNote
+#endif
     }
 
     private var verifySection: some View {

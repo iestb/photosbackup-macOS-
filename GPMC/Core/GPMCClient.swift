@@ -404,20 +404,40 @@ actor GPMCClient {
                           operation: method == Self.commitMethod ? "finalization" : "duplicate check").0
     }
 
+    /// Reads and SHA-1s a file in 1 MiB chunks, reporting fractional progress.
+    /// A plain `static` member of an actor is not actor-isolated, and this is
+    /// called via `Task.detached` from `prepareUpload` specifically so this
+    /// CPU/disk-bound loop — which never `await`s, so it cannot yield the
+    /// actor's executor to anyone else — does not stall every other queued
+    /// upload's calls into the same shared `GPMCClient` for however long this
+    /// one file takes to hash. Without that, "concurrent" uploads only ever
+    /// looked concurrent; their hashing passes actually ran one at a time.
+    private static func sha1(ofFile file: URL, declaredSize: Int64,
+                             phase: @escaping @Sendable (UploadPhase) -> Void) throws -> (hash: Data, size: UInt64) {
+        phase(.hashing(fraction: 0))
+        let handle = try FileHandle(forReadingFrom: file); defer { try? handle.close() }
+        var hasher = Insecure.SHA1(); var size: UInt64 = 0
+        while let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty {
+            try Task.checkCancellation(); hasher.update(data: chunk); size += UInt64(chunk.count)
+            phase(.hashing(fraction: declaredSize > 0 ? min(1, Double(size) / Double(declaredSize)) : 1))
+        }
+        return (Data(hasher.finalize()), size)
+    }
+
     /// Hash and de-duplicate while the app is awake, then obtain the resumable
     /// upload URL. No long-running body transfer happens in this method.
     func prepareUpload(file: URL, filename: String, modified: Date? = nil,
                        phase: @escaping @Sendable (UploadPhase) -> Void) async throws -> UploadPreparation {
         let declared = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
         guard declared > 0 else { throw GPMCError(message: "That item is empty; there is nothing to upload.") }
-        phase(.hashing(fraction: 0))
-        let handle = try FileHandle(forReadingFrom: file); defer { try? handle.close() }
-        var hasher = Insecure.SHA1(); var size: UInt64 = 0
-        while let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty {
-            try Task.checkCancellation(); hasher.update(data: chunk); size += UInt64(chunk.count)
-            phase(.hashing(fraction: min(1, Double(size) / Double(declared))))
+        let hashTask = Task.detached(priority: .utility) {
+            try Self.sha1(ofFile: file, declaredSize: declared, phase: phase)
         }
-        let hash = Data(hasher.finalize())
+        let (hash, size): (Data, UInt64) = try await withTaskCancellationHandler {
+            try await hashTask.value
+        } onCancel: {
+            hashTask.cancel()
+        }
         phase(.checkingDuplicate)
         let check = Proto.bytes(1, Proto.bytes(1, Proto.bytes(1, hash)) + Proto.bytes(2, Data()))
         let existing = try await rpc(Self.hashCheckMethod, body: check)
