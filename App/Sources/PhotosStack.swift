@@ -13,7 +13,7 @@ final class PhotosStack {
 
     init(store: CredentialStore = CredentialStore(), exporter: MediaExporter = MediaExporter()) {
         let account = PhotosAccount(store: store)
-        let transferGate = TransferGate(limit: 3)
+        let transferGate = TransferGate(limit: 5)
         let uploader = PhotosUploader(exporter: exporter, client: { await account.currentClient() },
                                      transferGate: transferGate)
         self.account = account

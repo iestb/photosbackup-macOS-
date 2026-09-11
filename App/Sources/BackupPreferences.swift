@@ -51,6 +51,15 @@ final class BackupPreferences: ObservableObject {
 
     private let defaults: UserDefaults
 
+    /// macOS reconciles much larger, already-backed-up libraries than a phone
+    /// typically holds, and its check/export/hash stage runs off the main
+    /// actor now, so it tolerates a far higher default before feeling slow.
+#if os(macOS)
+    private static let defaultConcurrentUploads = 20
+#else
+    private static let defaultConcurrentUploads = 2
+#endif
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         selectedAlbumIDs = Set(defaults.stringArray(forKey: Key.selectedAlbumIDs) ?? [])
@@ -60,9 +69,9 @@ final class BackupPreferences: ObservableObject {
         // `object(forKey:)` rather than `integer(forKey:)`: an unset key reads
         // as 0, which is not a legal concurrency and would clamp to 1.
         concurrentUploads = UploadQueue.clampedConcurrency(
-            defaults.object(forKey: Key.concurrentUploads) as? Int ?? 2)
+            defaults.object(forKey: Key.concurrentUploads) as? Int ?? Self.defaultConcurrentUploads)
         concurrentTransfers = UploadQueue.clampedTransferConcurrency(
-            defaults.object(forKey: Key.concurrentTransfers) as? Int ?? 3)
+            defaults.object(forKey: Key.concurrentTransfers) as? Int ?? 5)
         storageSaver = defaults.bool(forKey: Key.storageSaver)
         useQuota = defaults.bool(forKey: Key.useQuota)
     }
