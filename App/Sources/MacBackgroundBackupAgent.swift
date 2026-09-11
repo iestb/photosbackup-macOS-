@@ -206,23 +206,23 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.orange)
             }
 
-            LabeledContentCompat("Simultaneous Uploads") {
+            LabeledContentCompat("Backup Checks") {
                 Picker("", selection: $preferences.concurrentUploads) {
                     ForEach(Array(UploadQueue.concurrencyRange), id: \.self) { Text($0.formatted()).tag($0) }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-            .help("How many items are checked against Google Photos and prepared at once. Cheap, network-light work — safe to keep high.")
+            .help("How many photos are checked against Google Photos at once to see if they're already backed up. Cheap, network-light — safe to keep high.")
 
-            LabeledContentCompat("Simultaneous Transfers") {
+            LabeledContentCompat("New Uploads") {
                 Picker("", selection: $preferences.concurrentTransfers) {
                     ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { Text($0.formatted()).tag($0) }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-            .help("How many are actually sending file bytes at once. Bandwidth-heavy — a high value here can slow everything down.")
+            .help("How many photos that aren't already backed up are actively sending file bytes at once. Bandwidth-heavy — keep this low.")
 
             Toggle("Storage Saver", isOn: $preferences.storageSaver)
 

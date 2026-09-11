@@ -130,24 +130,30 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.orange)
             }
+#if os(macOS)
+            Picker("Simultaneous Backup Checks", selection: $preferences.concurrentUploads) {
+                ForEach(Array(UploadQueue.concurrencyRange), id: \.self) { count in
+                    Text(count.formatted()).tag(count)
+                }
+            }
+            Text("How many photos are checked against Google Photos at once to see if they're already backed up. Cheap, network-light work — safe to keep high.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("Simultaneous New Uploads", selection: $preferences.concurrentTransfers) {
+                ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { count in
+                    Text(count.formatted()).tag(count)
+                }
+            }
+            Text("How many photos that aren't already backed up are actively sending file bytes at once. Bandwidth-heavy — a high value here can saturate your connection and slow everything down.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+#else
             Picker("Simultaneous Uploads", selection: $preferences.concurrentUploads) {
                 ForEach(Array(UploadQueue.concurrencyRange), id: \.self) { count in
                     Text(count.formatted()).tag(count)
                 }
             }
-#if os(macOS)
-            Text("How many items are checked against Google Photos and prepared at once. Cheap, network-light work — safe to keep high.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Picker("Simultaneous Transfers", selection: $preferences.concurrentTransfers) {
-                ForEach(Array(UploadQueue.transferConcurrencyRange), id: \.self) { count in
-                    Text(count.formatted()).tag(count)
-                }
-            }
-            Text("How many are actually sending file bytes at once. Bandwidth-heavy — a high value here can saturate your connection and slow everything down.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 #endif
             Toggle("Storage Saver", isOn: $preferences.storageSaver)
             Toggle("Count Against Storage Quota", isOn: $preferences.useQuota)
