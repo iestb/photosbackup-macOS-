@@ -170,9 +170,15 @@ final class UploadQueue: ObservableObject {
     /// way a phone is, its hashing pass now genuinely runs off the main actor
     /// (see `GPMCClient.sha1`), and a first backup on a new Mac routinely
     /// means reconciling a library iOS already finished — tens of thousands
-    /// of items that just need a cheap "already backed up" check.
+    /// of items that just need a cheap "already backed up" check, which is
+    /// one small network round trip, not disk/CPU work, once hashed.
+    ///
+    /// 48 is a deliberately experimental upper bound, not a value backed by
+    /// any published rate limit for Google's undocumented mobile API — there
+    /// isn't one to look up. If raising this starts increasing the failure
+    /// count instead of throughput, that is the signal to come back down.
 #if os(macOS)
-    static let concurrencyRange = 1...24
+    static let concurrencyRange = 1...48
 #else
     static let concurrencyRange = 1...10
 #endif
