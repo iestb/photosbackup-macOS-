@@ -4,7 +4,7 @@ options:
   bundleIdPrefix: com.g8row.photosbackup
   deploymentTarget:
     iOS: "15.0"
-    macOS: "13.0"
+    macOS: "14.0"
   createIntermediateGroups: true
   minimumXcodeGenVersion: "2.40.0"
 
