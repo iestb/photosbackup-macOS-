@@ -15,9 +15,10 @@ settings:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1"
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-    # The configured Personal Team signs device builds. Simulator builds use
-    # Xcode's local signing identity, which is sufficient for Keychain access.
-    DEVELOPMENT_TEAM: QCXRK5J98S
+    # No fixed team here on purpose: whoever builds this picks their own team
+    # in Xcode's Signing & Capabilities once, and Automatic signing remembers
+    # it per target. A hardcoded team ID would just get reset to someone
+    # else's on every `xcodegen generate`.
     CODE_SIGN_STYLE: Automatic
 
 targets:
