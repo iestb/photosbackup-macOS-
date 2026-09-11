@@ -88,6 +88,14 @@ struct MenuBarContentView: View {
             }
             if queue.failedCount > 0 {
                 statRow(label: "Failed", value: queue.failedCount.formatted(), color: .red)
+                Button {
+                    queue.retryAllFailed()
+                } label: {
+                    Label("Retry Failed", systemImage: "arrow.clockwise.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
             if !queue.isIdle {
                 ProgressView(value: queue.overallFraction).tint(BackupTheme.blue).padding(.top, 2)
