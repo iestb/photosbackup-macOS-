@@ -47,6 +47,24 @@ struct UploadsView: View {
         }
     }
 
+    /// Rows worth a place in the list: anything still in flight or that needs
+    /// a decision. A quiet success (`.done`/`.alreadyBackedUp`) has nothing to
+    /// act on, and a first-time reconciliation of a large library can settle
+    /// tens of thousands of them — rendering (and re-diffing, on every single
+    /// one of those completions) a List that long is real, visible main-thread
+    /// cost for no benefit; the running "backed up" count elsewhere already
+    /// says how many finished. This only changes what's displayed, not what
+    /// the queue tracks — completed counts, the ledger, and Clear Finished all
+    /// still see every item.
+    private var notableItems: [UploadItem] {
+        queue.items.filter { item in
+            switch item.state {
+            case .done, .alreadyBackedUp: return false
+            default: return true
+            }
+        }
+    }
+
     private func enqueue(_ sources: [MediaSource]) {
         guard !sources.isEmpty else { return }
         queue.enqueue(sources, skippingExisting: true)
@@ -158,7 +176,7 @@ struct UploadsView: View {
                 }
                 .padding(.vertical, 6)
             }
-            ForEach(queue.items) { item in activityRow(item) }
+            ForEach(notableItems) { item in activityRow(item) }
         } header: {
             HStack {
                 Text("Uploads")
